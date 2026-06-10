@@ -1,0 +1,46 @@
+---
+title: "README.md"
+author: "Jola Pisarek"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+# Automatyzacja analiz w ZBIE
+
+Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania analiz 
+(analiza psychometryczna, analiza RCT) na danych z badań edukacyjnych.
+
+# Jak uruchomić projekt?
+
+Projekt korzysta z systemu `renv`do izolacji środowiska. Aby go uruchomić na nowym komputerze:
+
+1. Sklonuj to repozytorium na swój komputer.
+2. Otwórz plik projektu `.Rproj` w RStudio.
+3. W konsoli RStudio wpisz komendę, aby zainstalować wszystkie wymagane pakiety:
+   ```r
+   renv::restore()
+```
+
+# Struktura projektu
+
+```
+├── aa-zbie.Rproj
+├── data
+│   └── math_data.csv
+├── renv
+│   ├── activate.R
+│   ├── library
+│   │   └── windows
+│   ├── settings.json
+│   └── staging
+├── renv.lock
+├── reports
+│   └── psychometria_raport.Rmd
+└── src
+    ├── silnik_psychometria_analizy.R
+    └── silnik_psychometria_wczytanie_walidacja.R
+```
+# Wersja programu 
+
+*R version 4.6.0 (2026-04-24 ucrt)*
