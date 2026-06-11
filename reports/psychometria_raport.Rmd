@@ -109,8 +109,7 @@ rmarkdown::render("Psychometria_Uniwersalna.Rmd",
 
 required_packages <- c(
   "psych",        # CTT: alpha, omega, korelacje item-test
-
-"mirt",         # IRT: modele 1PL, 2PL, item fit
+  "mirt",         # IRT: modele 1PL, 2PL, item fit
   "ggplot2",      # wizualizacje
   "dplyr",        # manipulacja danymi
   "tidyr",        # przeksztalcanie danych
@@ -119,22 +118,15 @@ required_packages <- c(
   "corrplot",     # macierze korelacji
   "writexl",      # eksport do Excela
   "scales",       # skale na wykresach
-  "reshape2"      # melt/cast
+  "reshape2",     # melt/cast
+  "sirt"
 )
 
+# To powinno zostać zamienione na:
+# library(aazbie)
 for (pkg in required_packages) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    install.packages(pkg, dependencies = TRUE, repos = "https://cran.r-project.org")
-  }
   library(pkg, character.only = TRUE)
 }
-
-# Pakiet sirt - osobno, bo moze wymagac dodatkowych zaleznosci
-if (!requireNamespace("sirt", quietly = TRUE)) {
-  install.packages("sirt", dependencies = TRUE, repos = "https://cran.r-project.org")
-}
-library(sirt)
-
 cat("Wszystkie pakiety zaladowane pomyslnie.\n")
 ```
 
