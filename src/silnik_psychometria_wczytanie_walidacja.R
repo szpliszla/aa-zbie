@@ -5,90 +5,111 @@
 # ŁADOWANIE PAKIETÓW
 # ============================================================================
 
-load_required_packages <- function() {
-  required_packages <- c(
-    "psych",
-    "mirt",
-    "ggplot2",
-    "dplyr",
-    "tidyr",
-    "knitr",
-    "kableExtra",
-    "corrplot",
-    "writexl",
-    "scales",
-    "reshape2"
-  )
-
-  for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      install.packages(pkg, dependencies = TRUE, repos = "https://cran.r-project.org")
-    }
-    library(pkg, character.only = TRUE)
-  }
-
-  if (!requireNamespace("sirt", quietly = TRUE)) {
-    install.packages("sirt", dependencies = TRUE, repos = "https://cran.r-project.org")
-  }
-  library(sirt)
-
-  cat("Wszystkie pakiety zaladowane pomyslnie.\n")
-}
+library(haven)
+library(readxl)
 
 # ============================================================================
 # WCZYTYWANIE DANYCH
 # ============================================================================
 
-read_psych_data <- function(data_path = NULL) {
+#'@title Wczytanie danych psychometrycznych do analizy
+#'
+#'@description Proszę wczytać dane w jednym z obsługiwanych formatów:
+#'CSV, DTA, RDS, XLS lub XLSX.
+#'@param data_path ścieźka do pliku danych.
+#'@return Ramka danych ('data.frame').
+#'@export
 
-  if (is.null(data_path)) {
-    data_path <- file.choose()
+read_psych_data <- function(data_path) {
+
+  if (
+    missing(data_path) ||
+    is.null(data_path) ||
+    !is.character(data_path) ||
+    length(data_path) != 1 ||
+    data_path == ""
+  ) {
+    stop(
+      "Argument 'data_path' musi być pojedynczą, niepustą ścieżką do pliku.",
+      call. = FALSE
+    )
+  }
+
+  if (!file.exists(data_path)) {
+    stop(
+      paste0("Nie znaleziono pliku: ", data_path),
+      call. = FALSE
+    )
   }
 
   file_ext <- tolower(tools::file_ext(data_path))
+
+  if (file_ext == "") {
+    stop(
+      paste0("Plik nie ma rozszerzenia: ", data_path),
+      call. = FALSE
+    )
+  }
 
   raw_data <- switch(
     file_ext,
 
     "csv" = {
-      d <- read.csv(data_path, stringsAsFactors = FALSE, check.names = FALSE)
+      data_csv <- read.csv(
+        data_path,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
 
-      if (ncol(d) == 1) {
-        d2 <- read.csv2(data_path, stringsAsFactors = FALSE, check.names = FALSE)
+      if (ncol(data_csv) == 1) {
+        data_csv2 <- read.csv2(
+          data_path,
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
 
-        if (ncol(d2) > ncol(d)) {
-          d <- d2
+        if (ncol(data_csv2) > ncol(data_csv)) {
+          data_csv <- data_csv2
         }
       }
 
-      d
+      data_csv
     },
 
     "dta" = {
-      if (requireNamespace("foreign", quietly = TRUE)) {
-        foreign::read.dta(data_path)
-      } else if (requireNamespace("haven", quietly = TRUE)) {
-        as.data.frame(haven::read_dta(data_path))
-      } else {
-        stop("Zainstaluj pakiet 'foreign' lub 'haven' do wczytania pliku .dta")
-      }
+      as.data.frame(haven::read_dta(data_path))
     },
 
-    "rds" = readRDS(data_path),
+    "rds" = {
+      readRDS(data_path)
+    },
+
+    "xls" = {
+      as.data.frame(readxl::read_excel(data_path))
+    },
 
     "xlsx" = {
-      if (requireNamespace("readxl", quietly = TRUE)) {
-        as.data.frame(readxl::read_excel(data_path))
-      } else {
-        stop("Zainstaluj pakiet 'readxl' do wczytania pliku .xlsx")
-      }
+      as.data.frame(readxl::read_excel(data_path))
     },
 
-    stop(paste("Nieobslugiwany format pliku:", file_ext))
+    stop(
+      paste0("Nieobsługiwany format pliku: ", file_ext),
+      call. = FALSE
+    )
   )
 
-  return(raw_data)
+  if (!is.data.frame(raw_data)) {
+    stop(
+      "Wczytany obiekt nie jest ramką danych.",
+      call. = FALSE
+    )
+  }
+
+  as.data.frame(raw_data)
 }
+
+raw_data <- read_psych_data(here::here("data", "math_data.csv"))
+
 
 # ============================================================================
 # IDENTYFIKACJA ITEMOW
