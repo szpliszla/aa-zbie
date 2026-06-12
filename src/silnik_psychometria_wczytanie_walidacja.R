@@ -108,23 +108,55 @@ read_psych_data <- function(data_path) {
   as.data.frame(raw_data)
 }
 
-raw_data <- read_psych_data(here::here("data", "math_data.csv"))
-
 
 # ============================================================================
 # IDENTYFIKACJA ITEMOW
 # ============================================================================
 
-identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
+#'@title Identyfikacja kolumn itemów
+#'
+#' @description Funkcja wyszukuje kolumny rozpoczynajace sie od wskazanego prefiksu.
+#' Jeżeli itemy mają numeryczne końcówki, porządkuje je według numerów.
+#'
+#' @param raw_data Ramka danych
+#' @param item_prefix Prefiks nazw kolumn z itemami.
+#' @param exclude_items Opcjonalny wektor nazw itemów do wykluczenia.
+#'
+#' @return Wektor nazw kolumn z itemami
+#'
+#' @export
 
-  item_cols <- grep(paste0("^", item_prefix), names(raw_data), value = TRUE)
+
+identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
+  if (!is.data.frame(raw_data)) {
+    stop(
+      "Argument 'raw_data' musi być ramką danych.",
+      call. = FALSE
+    )
+  }
+
+  if (
+    missing(item_prefix) ||
+    is.null(item_prefix) ||
+    !is.character(item_prefix) ||
+    length(item_prefix) != 1 ||
+    item_prefix == ""
+  ) {
+    stop(
+      "Argument 'item_prefix' musi być pojedynczym, niepustym ciągiem znaków.",
+      call. = FALSE
+    )
+  }
+
+item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
 
   if (length(item_cols) == 0) {
     stop(paste0(
       "BLAD: Nie znaleziono zadnych kolumn z prefiksem '", item_prefix, "'.\n",
       "Dostepne kolumny: ", paste(head(names(raw_data), 20), collapse = ", "),
       "\nSprawdz parametr 'item_prefix'."
-    ))
+    ),
+    call. = FALSE)
   }
 
   item_nums <- suppressWarnings(as.numeric(sub(paste0("^", item_prefix), "", item_cols)))
@@ -142,16 +174,11 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 
   if (length(exclude_items) > 0) {
     item_cols <- setdiff(item_cols, exclude_items)
-
-    cat(
-      "### Recznie wykluczone itemy\n\n",
-      paste(exclude_items, collapse = ", "),
-      "\n\n"
-    )
   }
 
-  return(item_cols)
+  item_cols
 }
+
 
 # ============================================================================
 # WALIDACJA DANYCH
