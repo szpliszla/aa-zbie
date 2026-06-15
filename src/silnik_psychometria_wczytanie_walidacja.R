@@ -367,64 +367,270 @@ validate_items_data <- function(raw_data, item_cols) {
 
 #wyniki_walidacji <- validate_items_data(raw_data, item_cols)
 
-
 # ============================================================================
 # WYKRYWANIE WERSJI TESTU
 # ============================================================================
 
-detect_test_versions <- function(raw_data, items_data, item_cols, version_var = NULL) {
+#' @title Wykrywanie wersji testu
+#'
+#' @description Wykrywa wersje testu z kolumny wersji lub ze wzorców braków danych.
+#'
+#' @param raw_data Ramka danych.
+#' @param items_data Ramka danych z itemami.
+#' @param item_cols Wektor nazw kolumn z itemami.
+#' @param version_var Opcjonalna nazwa zmiennej z wersją testu.
+#' @param min_pattern_prop Minimalny udział wzorca braków, aby uznać go za wersję.
+#' @param item_missing_max_prop Maksymalny udział braków itemu w danej wersji.
+#' @param detected_version_col Nazwa roboczej kolumny z wykrytą wersją.
+#'
+#' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyką.
+#'
+#'
+#' @export
 
-  has_versions <- FALSE
-  detected_versions <- NULL
-  version_items <- list()
+detect_test_versions <- function(
+    raw_data,
+    items_data,
+    item_cols,
+    version_var = NULL,
+    min_pattern_prop = 0.05,
+    item_missing_max_prop = 0.90,
+    detected_version_col = ".detected_version"
+) {
+
+  if (!is.data.frame(raw_data)) {
+    stop("Argument 'raw_data' musi być ramką danych.", call. = FALSE)
+  }
+
+  if (!is.data.frame(items_data)) {
+    stop("Argument 'items_data' musi być ramką danych.", call. = FALSE)
+  }
+
+  if (
+    missing(item_cols) ||
+    is.null(item_cols) ||
+    !is.character(item_cols) ||
+    length(item_cols) == 0
+  ) {
+    stop("Argument 'item_cols' musi być niepustym wektorem nazw kolumn.", call. = FALSE)
+  }
+
+  if (nrow(raw_data) != nrow(items_data)) {
+    stop(
+      "Argumenty 'raw_data' i 'items_data' muszą mieć tę samą liczbę wierszy.",
+      call. = FALSE
+    )
+  }
+
+  missing_item_cols <- setdiff(item_cols, names(items_data))
+
+  if (length(missing_item_cols) > 0) {
+    stop(
+      paste0(
+        "W 'items_data' brakuje następujących itemów: ",
+        paste(missing_item_cols, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.null(version_var) &&
+    (!is.character(version_var) || length(version_var) != 1 || version_var == "")
+  ) {
+    stop(
+      "Argument 'version_var' musi być pojedynczą nazwą kolumny albo NULL.",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(min_pattern_prop) ||
+    length(min_pattern_prop) != 1 ||
+    min_pattern_prop <= 0 ||
+    min_pattern_prop >= 1
+  ) {
+    stop(
+      "Argument 'min_pattern_prop' musi być pojedynczą liczbą z przedziału (0, 1).",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(item_missing_max_prop) ||
+    length(item_missing_max_prop) != 1 ||
+    item_missing_max_prop <= 0 ||
+    item_missing_max_prop > 1
+  ) {
+    stop(
+      "Argument 'item_missing_max_prop' musi być pojedynczą liczbą z przedziału (0, 1].",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.character(detected_version_col) ||
+    length(detected_version_col) != 1 ||
+    detected_version_col == ""
+  ) {
+    stop(
+      "Argument 'detected_version_col' musi być pojedynczą nazwą kolumny.",
+      call. = FALSE
+    )
+  }
+
+  if (detected_version_col %in% names(raw_data)) {
+    stop(
+      paste0(
+        "Kolumna '", detected_version_col,
+        "' już istnieje w danych. Wybierz inną nazwę przez 'detected_version_col'."
+      ),
+      call. = FALSE
+    )
+  }
+
+  items_matrix <- items_data[, item_cols, drop = FALSE]
+
+  detection_method <- "none"
+  detection_warnings <- character(0)
+  pattern_counts <- NULL
+  major_patterns <- NULL
+  unclassified_rows <- integer(0)
+  unclassified_patterns <- NULL
+
+  version_vector <- rep(NA_character_, nrow(items_matrix))
+
+  make_version_items <- function(version_vector, detected_versions) {
+    version_items <- lapply(
+      detected_versions,
+      function(version) {
+        version_rows <- which(
+          as.character(version_vector) == as.character(version)
+        )
+
+        version_data <- items_matrix[version_rows, , drop = FALSE]
+
+        item_missing_prop <- colMeans(is.na(version_data))
+
+        item_cols[item_missing_prop <= item_missing_max_prop]
+      }
+    )
+
+    names(version_items) <- detected_versions
+    version_items
+  }
 
   if (!is.null(version_var) && version_var %in% names(raw_data)) {
 
-    has_versions <- TRUE
-    detected_versions <- sort(unique(raw_data[[version_var]]))
-    raw_data$detected_version <- raw_data[[version_var]]
+    detection_method <- "version_var"
 
-    for (v in detected_versions) {
-      v_rows <- which(raw_data$detected_version == v)
-      v_data <- items_data[v_rows, , drop = FALSE]
-      v_items <- item_cols[colMeans(is.na(v_data)) < 0.50]
-      version_items[[as.character(v)]] <- v_items
-    }
+    version_vector <- as.character(raw_data[[version_var]])
+    version_vector[version_vector == ""] <- NA_character_
 
-  } else if (any(is.na(items_data))) {
+    unclassified_rows <- which(is.na(version_vector))
 
-    missing_pattern <- apply(is.na(items_data), 1, function(x) paste(as.integer(x), collapse = ""))
-    pattern_counts <- sort(table(missing_pattern), decreasing = TRUE)
-    major_patterns <- names(pattern_counts[pattern_counts >= nrow(items_data) * 0.05])
-
-    if (length(major_patterns) > 1) {
-
-      raw_data$detected_version <- match(missing_pattern, major_patterns)
-      raw_data$detected_version[is.na(raw_data$detected_version)] <- 0
-
-      detected_versions <- sort(unique(raw_data$detected_version[raw_data$detected_version > 0]))
-
-      for (v in detected_versions) {
-        v_rows <- which(raw_data$detected_version == v)
-        v_data <- items_data[v_rows, , drop = FALSE] #fix: ] zamiast ).
-v_items <- item_cols[colMeans(is.na(v_data)) < 0.50]
-version_items[[as.character(v)]] <- v_items
-      }
-
-      has_versions <- TRUE
-
-    } else {
-      has_versions <- FALSE
+    if (length(unclassified_rows) > 0) {
+      detection_warnings <- c(
+        detection_warnings,
+        paste0(
+          "Zmienna wersji testu zawiera braki danych dla ",
+          length(unclassified_rows),
+          " obserwacji."
+        )
+      )
     }
 
   } else {
-    has_versions <- FALSE
+
+    if (!is.null(version_var) && !version_var %in% names(raw_data)) {
+      detection_warnings <- c(
+        detection_warnings,
+        paste0(
+          "Nie znaleziono zmiennej wersji testu: ",
+          version_var,
+          ". Podjęto próbę wykrycia wersji na podstawie braków danych."
+        )
+      )
+    }
+
+    if (any(is.na(items_matrix))) {
+
+      missing_pattern <- apply(
+        is.na(items_matrix),
+        1,
+        function(x) paste(as.integer(x), collapse = "")
+      )
+
+      pattern_counts <- sort(table(missing_pattern), decreasing = TRUE)
+
+      major_patterns <- names(
+        pattern_counts[pattern_counts >= nrow(items_matrix) * min_pattern_prop]
+      )
+
+      if (length(major_patterns) > 1) {
+
+        detection_method <- "missing_pattern"
+
+        version_id <- match(missing_pattern, major_patterns)
+        version_vector <- as.character(version_id)
+        version_vector[is.na(version_id)] <- NA_character_
+
+        unclassified_rows <- which(is.na(version_vector))
+
+        if (length(unclassified_rows) > 0) {
+          unclassified_patterns <- sort(
+            table(missing_pattern[unclassified_rows]),
+            decreasing = TRUE
+          )
+
+          detection_warnings <- c(
+            detection_warnings,
+            paste0(
+              "Nie przypisano wersji dla ",
+              length(unclassified_rows),
+              " obserwacji z rzadkimi wzorcami braków danych."
+            )
+          )
+        }
+
+      } else {
+        detection_warnings <- c(
+          detection_warnings,
+          "Nie wykryto więcej niż jednego głównego wzorca braków danych."
+        )
+      }
+
+    } else {
+      detection_warnings <- c(
+        detection_warnings,
+        "Nie podano zmiennej wersji i nie wykryto braków danych pozwalających rozpoznać wersje."
+      )
+    }
   }
 
-  return(list(
+  raw_data[[detected_version_col]] <- version_vector
+
+  detected_versions <- sort(unique(version_vector[!is.na(version_vector)]))
+
+  version_items <- make_version_items(
+    version_vector = version_vector,
+    detected_versions = detected_versions
+  )
+
+  list(
     raw_data = raw_data,
-    has_versions = has_versions,
+    has_versions = length(detected_versions) > 0,
+    has_multiple_versions = length(detected_versions) > 1,
     detected_versions = detected_versions,
-    version_items = version_items
-  ))
+    version_items = version_items,
+    detection_method = detection_method,
+    detection_warnings = detection_warnings,
+    pattern_counts = pattern_counts,
+    major_patterns = major_patterns,
+    unclassified_rows = unclassified_rows,
+    unclassified_patterns = unclassified_patterns,
+    detected_version_col = detected_version_col,
+    min_pattern_prop = min_pattern_prop,
+    item_missing_max_prop = item_missing_max_prop
+  )
 }
