@@ -7,6 +7,7 @@
 
 library(haven)
 library(readxl)
+library(here)
 
 # ============================================================================
 # WCZYTYWANIE DANYCH
@@ -108,6 +109,7 @@ read_psych_data <- function(data_path) {
   as.data.frame(raw_data)
 }
 
+#raw_data <- read_psych_data(here("data", "math_data.csv"))
 
 # ============================================================================
 # IDENTYFIKACJA ITEMOW
@@ -179,89 +181,192 @@ item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
   item_cols
 }
 
+#item_cols <- identify_item_columns(raw_data, item_prefix = "mat_")
+
 
 # ============================================================================
 # WALIDACJA DANYCH
 # ============================================================================
 
+#' @title Walidacja itemów testowych
+#'
+#' @description Sprawdza typ danych, binarność itemów oraz wariancję
+#'
+#' @param raw_data Ramka danych
+#' @param item_cols Wektor nazw kolumn z itemami
+
+#' @return Lista z informacjami o problemach walidacyjnych
+#' @export
+
 validate_items_data <- function(raw_data, item_cols) {
+
+  if (!is.data.frame(raw_data)) {
+    stop(
+      "Argument 'raw_data' musi być ramką danych.",
+      call. = FALSE
+    )
+  }
+
+  if (
+    missing(item_cols) ||
+    is.null(item_cols) ||
+    !is.character(item_cols) ||
+    length(item_cols) == 0
+  ) {
+    stop(
+      "Argument 'item_cols' musi być ciągiem znaków o długości większej niż 0.",
+      call. = FALSE
+    )
+  }
+
+  missing_cols <- setdiff(item_cols, names(raw_data))
+
+  if (length(missing_cols) > 0) {
+    stop(
+      paste0("Brakuje kolumn: ", paste(missing_cols, collapse = ", ")),
+      call. = FALSE
+    )
+  }
 
   validation_issues <- list()
   validation_warnings <- list()
 
   items_data <- raw_data[, item_cols, drop = FALSE]
 
-  col_types <- sapply(items_data, class)
+  col_types <- vapply(items_data,
+                      function(x) class(x)[1],
+                      character(1))
+
   non_numeric <- names(col_types[!col_types %in% c("numeric", "integer")])
 
+  conversion_diagnostics <- data.frame(
+    item = character(0),
+    type_before = character(0),
+    new_na_count = integer(0),
+    stringsAsFactors = FALSE
+  )
+
   if (length(non_numeric) > 0) {
-    cat("**UWAGA:** Nastepujace kolumny nie sa numeryczne i zostana skonwertowane:\n\n")
+
+    conversion_diagnostics <- data.frame(
+      item = non_numeric,
+      type_before = unname(col_types[non_numeric]),
+      new_na_count = integer(length(non_numeric)),
+      stringsAsFactors = FALSE
+    )
 
     for (col in non_numeric) {
-      cat("-", col, "(typ:", col_types[col], ")\n")
-      items_data[[col]] <- as.numeric(as.character(items_data[[col]]))
+      na_before <- sum(is.na(items_data[[col]]))
+
+      if (is.logical(items_data[[col]])) {
+        items_data[[col]] <- as.numeric(items_data[[col]])
+      } else {
+        items_data[[col]] <- suppressWarnings(
+          as.numeric(as.character(items_data[[col]]))
+        )
+      }
+
+      na_after <- sum(is.na(items_data[[col]]))
+
+      conversion_diagnostics$new_na_count[
+        conversion_diagnostics$item == col
+      ] <- na_after - na_before
     }
 
     validation_warnings <- c(
       validation_warnings,
       list(paste("Skonwertowano", length(non_numeric), "kolumn na typ numeryczny"))
     )
-
-    cat("\n")
   }
 
-  value_check <- sapply(items_data, function(x) {
+  # Lukasz: dobre miejsce na "wpięcie się" z danymi kategorycznymi.
+
+  value_check <- vapply(items_data, function(x) {
     vals <- unique(x[!is.na(x)])
     all(vals %in% c(0, 1))
-  })
+  }, logical(1))
 
   non_binary <- names(value_check[!value_check])
+  non_binary_values <- list()
 
   if (length(non_binary) > 0) {
-    cat("**BLAD:** Nastepujace itemy zawieraja wartosci inne niz 0/1:\n\n")
 
-    for (col in non_binary) {
-      vals <- sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
-      cat("-", col, ": wartosci =", paste(vals, collapse = ", "), "\n")
-    }
+    non_binary_values <- lapply(
+      non_binary,
+      function(col) {
+        sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
+      }
+    )
 
-    cat("\n**UWAGA:** Itemy z wartosciami innymi niz 0/1 zostana wykluczone z analiz.\n\n")
+    names(non_binary_values) <- non_binary
 
     item_cols <- setdiff(item_cols, non_binary)
     items_data <- items_data[, item_cols, drop = FALSE]
 
     validation_issues <- c(
       validation_issues,
-      list(paste(
-        "Wykluczono", length(non_binary), "nie-binarnych itemow:",
-        paste(non_binary, collapse = ", ")
-      ))
+      list(
+        paste0(
+          "Wykluczono itemy niebinarne: ",
+          paste(non_binary, collapse = ", ")
+        )
+      )
     )
   }
 
-  item_vars <- sapply(items_data, function(x) var(x, na.rm = TRUE))
+  if (length(item_cols) == 0) {
+    stop(
+      "Po wykluczeniu itemów niebinarnych nie pozostały żadne itemy do analizy.",
+      call. = FALSE
+    )
+  }
+
+  item_vars <- vapply(
+    items_data,
+    function(x) var(x, na.rm = TRUE),
+    numeric(1)
+  )
+
   zero_var_items <- names(item_vars[item_vars == 0 | is.na(item_vars)])
 
   if (length(zero_var_items) > 0) {
-    cat("**UWAGA:** Itemy z zerowa wariancja zostana wykluczone:\n\n")
-    cat(paste(zero_var_items, collapse = ", "), "\n\n")
 
     item_cols <- setdiff(item_cols, zero_var_items)
     items_data <- items_data[, item_cols, drop = FALSE]
 
     validation_issues <- c(
       validation_issues,
-      list(paste("Wykluczono", length(zero_var_items), "itemow z zerowa wariancja"))
+      list(
+        paste0(
+          "Wykluczono itemy z zerową wariancją: ",
+          paste(zero_var_items, collapse = ", ")
+        )
+      )
     )
   }
 
-  return(list(
+  if (length(item_cols) == 0) {
+    stop(
+      "Po walidacji nie pozostały żadne itemy do analizy.",
+      call. = FALSE
+    )
+  }
+
+  list(
     item_cols = item_cols,
     items_data = items_data,
     validation_issues = validation_issues,
-    validation_warnings = validation_warnings
-  ))
+    validation_warnings = validation_warnings,
+    non_numeric_items = non_numeric,
+    conversion_diagnostics = conversion_diagnostics,
+    non_binary_items = non_binary,
+    non_binary_values = non_binary_values,
+    zero_variance_items = zero_var_items
+  )
 }
+
+#wyniki_walidacji <- validate_items_data(raw_data, item_cols)
+
 
 # ============================================================================
 # WYKRYWANIE WERSJI TESTU
