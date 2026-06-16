@@ -1,39 +1,6 @@
 # ============================================================================
 # FUNKCJE POMOCNICZE - RAPORT PSYCHOMETRYCZNY
 # ============================================================================
-# ============================================================================
-# ŁADOWANIE PAKIETÓW
-# ============================================================================
-
-load_required_packages <- function() {
-  required_packages <- c(
-    "psych",
-    "mirt",
-    "ggplot2",
-    "dplyr",
-    "tidyr",
-    "knitr",
-    "kableExtra",
-    "corrplot",
-    "writexl",
-    "scales",
-    "reshape2"
-  )
-
-  for (pkg in required_packages) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      install.packages(pkg, dependencies = TRUE, repos = "https://cran.r-project.org")
-    }
-    library(pkg, character.only = TRUE)
-  }
-
-  if (!requireNamespace("sirt", quietly = TRUE)) {
-    install.packages("sirt", dependencies = TRUE, repos = "https://cran.r-project.org")
-  }
-  library(sirt)
-
-  cat("Wszystkie pakiety zaladowane pomyslnie.\n")
-}
 
 # ============================================================================
 # WCZYTYWANIE DANYCH

@@ -37,9 +37,10 @@ Projekt korzysta z systemu `renv`do izolacji środowiska. Aby go uruchomić na n
 ├── renv.lock
 ├── reports
 │   └── psychometria_raport.Rmd
-└── src
-    ├── silnik_psychometria_analizy.R
-    └── silnik_psychometria_wczytanie_walidacja.R
+└── R
+│   ├── silnik_psychometria_analizy.R
+│   └── silnik_psychometria_wczytanie_walidacja.R
+└── tests
 ```
 # Wersja programu 
 
