@@ -9,16 +9,19 @@ License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
-Impoerts:
-  psych
-  mirt
-  ggplot2
-  dplyr
-  tidyr
-  knitr
-  kableExtra
-  corrplot
-  writexl
-  scales
-  reshape2
+Imports:
+  psych,
+  mirt,
+  ggplot2,
+  dplyr,
+  tidyr,
+  knitr,
+  kableExtra,
+  corrplot,
+  writexl,
+  scales,
+  reshape2,
   sirt
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
