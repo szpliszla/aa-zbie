@@ -109,7 +109,7 @@ read_psych_data <- function(data_path) {
   as.data.frame(raw_data)
 }
 
-#raw_data <- read_psych_data(here("data", "math_data.csv"))
+raw_data <- read_psych_data(here("data", "math_data.csv"))
 
 # ============================================================================
 # IDENTYFIKACJA ITEMOW
@@ -181,7 +181,7 @@ item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
   item_cols
 }
 
-#item_cols <- identify_item_columns(raw_data, item_prefix = "mat_")
+item_cols <- identify_item_columns(raw_data, item_prefix = "mat_")
 
 
 # ============================================================================
@@ -365,7 +365,7 @@ validate_items_data <- function(raw_data, item_cols) {
   )
 }
 
-#wyniki_walidacji <- validate_items_data(raw_data, item_cols)
+wyniki_walidacji <- validate_items_data(raw_data, item_cols)
 
 # ============================================================================
 # WYKRYWANIE WERSJI TESTU
@@ -701,14 +701,14 @@ detect_test_versions <- function(
 
 version_result <- detect_test_versions(
   raw_data              = raw_data,
-  items_data            = items_data,
-  item_cols             = item_cols,
+  items_data            = wyniki_walidacji$items_data,
+  item_cols             = wyniki_walidacji$item_cols,
   version_var           = "wersja",
   min_pattern_prop      = 0.05,
   item_missing_max_prop = 0.90,
   detected_version_col  = ".detected_version"
 )
 
-
+rm(list = setdiff(ls(), "version_result"))
 
 
