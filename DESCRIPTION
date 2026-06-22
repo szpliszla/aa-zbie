@@ -13,6 +13,7 @@ Imports:
   psych,
   mirt,
   ggplot2,
+  rlang,
   dplyr,
   tidyr,
   knitr,
