@@ -464,7 +464,7 @@ make_params_table <- function(model, model_name = NA_character_) {
 make_irt_plots <- function(preferred_model, data_items, theta_vals, label, preferred_name, show_empirical_icc = TRUE) {
   plots <- list()
 
-  plots$test_information <- plot(
+  plots$test_information <- mirt::plot(
     preferred_model,
     type = "info",
     facet_items = FALSE,
@@ -478,7 +478,7 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
     end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
     plot_name <- paste0("items_", start_idx, "_", end_idx)
 
-    trace_plots[[plot_name]] <- plot(
+    trace_plots[[plot_name]] <- mirt::plot(
       preferred_model,
       type = "trace",
       which.items = start_idx:end_idx,
@@ -491,7 +491,13 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
   plots$item_traces <- trace_plots
 
   if (show_empirical_icc) {
-    plots$empirical_icc <- make_empirical_icc_plot(preferred_model, data_items, theta_vals, label, preferred_name)
+    plots$empirical_icc <- make_empirical_icc_plot(
+      preferred_model,
+      data_items,
+      theta_vals,
+      label,
+      preferred_name
+    )
   }
 
   theta_df <- data.frame(theta = theta_vals)
@@ -527,7 +533,9 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
 make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly test", model_name = "IRT") {
   breaks_theta <- unique(quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
 
-  if (length(breaks_theta) < 3) return(NULL)
+  if (length(breaks_theta) < 3) {
+    return(NULL)
+  }
 
   theta_groups <- cut(theta_vals, breaks = breaks_theta, include.lowest = TRUE)
 
@@ -588,7 +596,6 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
     ) +
     ggplot2::theme_minimal()
 }
-
 # ============================================================================
 # ANALIZA IRT
 # ============================================================================
