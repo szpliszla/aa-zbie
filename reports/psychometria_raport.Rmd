@@ -13,17 +13,28 @@ output:
     code_folding: hide
     df_print: paged
 params:
-  data_path: "testowanie skryptu/math_data.csv"
+  # --- Ścieżki i identyfikatory struktur ---
+  data_path: "../data/math_data.csv"
   item_prefix: "mat_"
-  group_var: "grupa"
   id_var: "id_ucznia"
-  version_var: "pomiar"
+  group_var: "grupa"
+  exclude_items: NULL
+  
+  # --- Zarządzanie wersjami testu ---
+  version_var: "pomiar"               
+  min_pattern_prop: 0.05             
+  item_missing_max_prop: 0.90        
+  detected_version_col: "detected_version"
+
+  # --- Kryteria Walidacji i CTT ---
   alpha_threshold: 0.70
   discrimination_min: 0.30
   correlation_threshold_negative: 0.00
   correlation_threshold_low: 0.15
-  dif_group_var: "grupa"
-  exclude_items: NULL
+  
+  # --- Parametry Analizy DIF ---
+  dif_group_var: "grupa"              
+  dif_method: "logistic"              
 editor_options: 
   markdown: 
     wrap: 72
@@ -37,195 +48,149 @@ knitr::opts_chunk$set(
   fig.width = 10,
   fig.height = 7,
   fig.align = "center",
-  results = "asis"
+  results = "asis",
+  error = TRUE
 )
+
+options(knitr.table.format = "html")
+
+if (requireNamespace("aazbie", quietly = TRUE)) {
+  library(aazbie)
+}
+
+if (!exists("read_psych_data", mode = "function")) {
+  engine_candidates <- c(
+    file.path("..", "R", "silnik_psychometria_wczytanie_walidacja.R"),
+    file.path("R", "silnik_psychometria_wczytanie_walidacja.R")
+  )
+  engine_path <- engine_candidates[file.exists(engine_candidates)][1]
+
+  if (is.na(engine_path)) {
+    stop("Nie znaleziono pliku silnika: silnik_psychometria_wczytanie_walidacja.R")
+  }
+
+  source(engine_path)
+}
 ```
 
 # Instrukcja przygotowania danych {.tabset}
 
-## Wymagania dotyczace danych
+## Wymagania dotyczące danych
 
-Ten raport jest **uniwersalnym narzedziem** do przeprowadzania analiz
-psychometrycznych na danych z testow edukacyjnych i psychologicznych.
-Aby raport dzialal poprawnie, dane musza spelnic okreslone wymagania.
+Ten raport jest **uniwersalnym narzędziem** do przeprowadzania analiz
+psychometrycznych na danych z testów edukacyjnych i psychologicznych.
+Aby raport działał poprawnie, dane muszą spełnić określone wymagania.
 
 ### Format danych
 
--   **Plik CSV** (kodowanie UTF-8, separator: przecinek lub srednik)
--   **Plik DTA** (format Stata)
--   **Plik RDS** (format R)
+- **Plik CSV** (kodowanie UTF-8, separator: przecinek lub średnik)
+- **Plik XLSX** (format Microsoft Excel)
+- **Plik DTA** (format Stata)
+- **Plik RDS** (format R)
 
 ### Struktura danych
 
-Dane musza byc w formacie **szerokim** (wide format) - kazdy wiersz to
-jedna osoba badana, kazda kolumna to jedna zmienna.
+Dane muszą być w formacie **szerokim** (wide format) – każdy wiersz to
+jedna osoba badana, każda kolumna to jedna zmienna.
 
 | Kolumna | Opis | Wymagane |
 |--------------------------|------------------|----------------------------|
-| Zmienne identyfikujace (ID) | ID osoby, ID szkoly itp. | Opcjonalne |
+| Zmienne identyfikujące (ID) | ID osoby, ID szkoły itp. | Opcjonalne |
 | **Itemy testowe** | Odpowiedzi na zadania testu | **TAK** |
-| Zmienna grupujaca | Np. grupa eksperymentalna/kontrolna, plec | Opcjonalne (wymagane dla DIF) |
-| Wersja testu | Rozne wersje/formularze testu | Opcjonalne |
+| Zmienna grupująca | Np. grupa eksperymentalna/kontrolna, płeć | Opcjonalne (wymagane dla DIF) |
+| Wersja testu | Różne wersje/formularze testu | Opcjonalne |
 
 ### Kodowanie odpowiedzi
 
--   Itemy musza byc zakodowane jako **0/1** (dychotomicznie)
-    -   `0` = odpowiedz bledna
-    -   `1` = odpowiedz poprawna
-    -   `NA` = brak odpowiedzi (dozwolone)
--   Wszystkie itemy testowe musza miec **wspolny prefiks** w nazwie (np.
-    `mat_`, `item_`, `q_`)
+- Itemy muszą być zakodowane jako **0/1** (dychotomicznie)
+  - `0` = odpowiedź błędna
+  - `1` = odpowiedź poprawna
+  - `NA` = brak odpowiedzi (dozwolone)
+- Wszystkie itemy testowe muszą mieć **wspólny prefiks** w nazwie (np.
+  `mat_`, `item_`, `q_`)
 
 ### Parametry raportu
 
-Raport jest konfigurowany przez parametry w naglowku YAML:
+Raport jest konfigurowany przez parametry w nagłówku YAML:
 
--   `data_path`: sciezka do pliku z danymi
--   `item_prefix`: prefiks nazw kolumn z itemami (np. `"mat_"`)
--   `group_var`: nazwa zmiennej grupujacej (np. `"grupa"`) - opcjonalna
--   `id_var`: nazwa zmiennej z identyfikatorem osoby - opcjonalna
--   `version_var`: nazwa zmiennej z wersja testu - opcjonalna
--   `dif_group_var`: zmienna do analizy DIF (np. `"grupa"`, `"plec"`) -
-    opcjonalna
--   `exclude_items`: lista itemow do wykluczenia z analiz (np. ["mat_5", "mat_12"]) - opcjonalna
+- `data_path`: ścieżka do pliku z danymi
+- `item_prefix`: prefiks nazw kolumn z itemami (np. `"mat_"`)
+- `id_var`: nazwa zmiennej z identyfikatorem osoby – opcjonalna
+- `exclude_items`: lista itemów do wykluczenia z analiz (np.
+  `["mat_5", "mat_12"]`) – opcjonalna
+- `version_var`: nazwa zmiennej z wersją testu – opcjonalna (jeśli
+  `NULL`, silnik uruchomi automatyczną heurystykę)
+- `min_pattern_prop`: minimalny % wielkości próby, aby wzorzec braków
+  został uznany za wersję testu (np. `0.05`)
+- `item_missing_max_prop`: maksymalny odsetek braków danych dla itemu w
+  danej wersji, powyżej którego jest usuwany (np. `0.90`)
+- `alpha_threshold`: próg rzetelności Alfa Cronbacha (np. `0.70`)
+- `discrimination_min`: minimalna akceptowalna moc dyskryminacyjna itemu
+  (np. `0.30`)
+- `correlation_threshold_negative`: próg dla korelacji ujemnych (np.
+  `0.00`)
+- `correlation_threshold_low`: próg dla niskich korelacji item-test (np.
+  `0.15`)
+- `dif_group_var`: zmienna do analizy DIF (np. `"grupa"`, `"płeć"`) –
+  opcjonalna
 
 ### Przykladowe wywolanie
 
 ``` r
 rmarkdown::render("Psychometria_Uniwersalna.Rmd",
   params = list(
-    data_path = "math_data.csv",
-    item_prefix = "mat_",
-    group_var = "grupa",
-    id_var = "id_ucznia",
-    dif_group_var = "grupa"
-  ))
-```
-
-```{r install-packages}
-# ============================================================================
-# INSTALACJA I LADOWANIE PAKIETOW
-# ============================================================================
-
-required_packages <- c(
-  "psych",        # CTT: alpha, omega, korelacje item-test
-  "mirt",         # IRT: modele 1PL, 2PL, item fit
-  "ggplot2",      # wizualizacje
-  "dplyr",        # manipulacja danymi
-  "tidyr",        # przeksztalcanie danych
-  "knitr",        # tabele w raporcie
-  "kableExtra",   # formatowanie tabel
-  "corrplot",     # macierze korelacji
-  "writexl",      # eksport do Excela
-  "scales",       # skale na wykresach
-  "reshape2",     # melt/cast
-  "sirt"
+    data_path         = "math_data.csv",
+    item_prefix       = "mat_",
+    id_var            = "id_ucznia",
+    dif_group_var     = "grupa",
+    alpha_threshold   = 0.80,          
+    version_var       = NULL
+  )
 )
-
-# To powinno zostać zamienione na:
-# library(aazbie)
-for (pkg in required_packages) {
-  library(pkg, character.only = TRUE)
-}
-cat("Wszystkie pakiety zaladowane pomyslnie.\n")
 ```
 
 # Wczytywanie i walidacja danych
 
 ```{r load-data}
 # ============================================================================
-# WCZYTYWANIE DANYCH
+# WCZYTYWANIE DANYCH PRZEZ SILNIK
 # ============================================================================
 
-data_path <- params$data_path
+# Silnik automatycznie rozpozna format (CSV, XLSX, DTA, RDS).
+# Sciezka do pliku musi byc przekazana jawnie przez params$data_path.
 
-# Jesli sciezka nie zostala podana lub plik nie istnieje, pozwol wybrac plik interaktywnie
-if (is.null(data_path) || data_path == "" || !file.exists(data_path)) {
-  data_path <- file.choose()
-}
+raw_data <- read_psych_data(params$data_path)
 
-# Automatyczne rozpoznanie formatu
-file_ext <- tolower(tools::file_ext(data_path))
-
-raw_data <- switch(file_ext,
-  "csv" = {
-  # Najpierw probujemy przecinek
-  d <- read.csv(data_path, stringsAsFactors = FALSE, check.names = FALSE)
-
-  # Jesli wyszla tylko jedna kolumna, probujemy srednik
-  if (ncol(d) == 1) {
-    d2 <- read.csv2(data_path, stringsAsFactors = FALSE, check.names = FALSE)
-
-    if (ncol(d2) > ncol(d)) {
-      d <- d2
-    }
-  }
-
-  d
-},
-  "dta" = {
-    if (requireNamespace("foreign", quietly = TRUE)) {
-      foreign::read.dta(data_path)
-    } else if (requireNamespace("haven", quietly = TRUE)) {
-      as.data.frame(haven::read_dta(data_path))
-    } else {
-      stop("Zainstaluj pakiet 'foreign' lub 'haven' do wczytania pliku .dta")
-    }
-  },
-  "rds" = readRDS(data_path),
-  "xlsx" = {
-    if (requireNamespace("readxl", quietly = TRUE)) {
-      as.data.frame(readxl::read_excel(data_path))
-    } else {
-      stop("Zainstaluj pakiet 'readxl' do wczytania pliku .xlsx")
-    }
-  },
-  stop(paste("Nieobslugiwany format pliku:", file_ext))
-)
-
-cat("### Wczytano dane\n\n")
-cat("- **Plik:**", data_path, "\n")
-cat("- **Liczba wierszy:**", nrow(raw_data), "\n")
-cat("- **Liczba kolumn:**", ncol(raw_data), "\n\n")
+cat("### Podsumowanie wczytanego zbioru\n\n")
+cat("- **Plik wejściowy:**", params$data_path, "\n")
+cat("- **Liczba wierszy (N osób):**", nrow(raw_data), "\n")
+cat("- **Liczba kolumn (Wszystkie zmienne):**", ncol(raw_data), "\n\n")
 ```
 
 ```{r identify-items}
 # ============================================================================
-# IDENTYFIKACJA ITEMOW
+# IDENTYFIKACJA POZYCJI TESTOWYCH PRZEZ SILNIK
 # ============================================================================
 
-item_prefix <- params$item_prefix
-item_cols <- grep(paste0("^", item_prefix), names(raw_data), value = TRUE)
+# Silnik bezpiecznie sortuje pozycje, weryfikuje ich istnienie i usuwa wykluczone.
+# W razie braku pasujących kolumn, to silnik wygeneruje czytelny błąd systemowy.
+item_cols <- identify_item_columns(
+  raw_data = raw_data, 
+  item_prefix = params$item_prefix, 
+  exclude_items = params$exclude_items
+)
 
-if (length(item_cols) == 0) {
-  stop(paste0(
-    "BLAD: Nie znaleziono zadnych kolumn z prefiksem '", item_prefix, "'.\n",
-    "Dostepne kolumny: ", paste(head(names(raw_data), 20), collapse = ", "),
-    "\nSprawdz parametr 'item_prefix'."
-  ))
+# Renderowanie informacji o wykluczeniach (jeśli istnieją)
+if (length(params$exclude_items) > 0) {
+  cat("### Ręcznie wykluczone pozycje testowe\n\n")
+  cat(paste(params$exclude_items, collapse = ", "), "\n\n")
 }
 
-# Sortowanie itemow po numerze, np. mat_1, mat_2, ..., mat_10
-item_nums <- suppressWarnings(as.numeric(sub(paste0("^", item_prefix), "", item_cols)))
-item_cols <- item_cols[order(item_nums)]
-
-# Reczne wykluczanie itemow z analiz
-exclude_items <- params$exclude_items
-
-if (length(exclude_items) > 0) {
-  item_cols <- setdiff(item_cols, exclude_items)
-
-  cat(
-    "### Recznie wykluczone itemy\n\n",
-    paste(exclude_items, collapse = ", "),
-    "\n\n"
-  )
-}
-
-cat("### Zidentyfikowane itemy\n\n")
-cat("- **Prefiks:**", item_prefix, "\n")
-cat("- **Liczba itemow:**", length(item_cols), "\n")
-cat("- **Nazwy itemow:**", paste(item_cols, collapse = ", "), "\n\n")
+# Renderowanie podsumowania dla czytelnika
+cat("### Zidentyfikowane pozycje testowe\n\n")
+cat("- **Prefiks:**", params$item_prefix, "\n")
+cat("- **Liczba aktywnych pozycji:**", length(item_cols), "\n")
+cat("- **Zestawienie:**", paste(item_cols, collapse = ", "), "\n\n")
 ```
 
 ## Walidacja danych
@@ -235,26 +200,32 @@ cat("- **Nazwy itemow:**", paste(item_cols, collapse = ", "), "\n\n")
 # KOMPLEKSOWA WALIDACJA DANYCH
 # ============================================================================
 
-validation_issues <- list()
-validation_warnings <- list()
+validation_result <- validate_items_data(
+  raw_data = raw_data,
+  item_cols = item_cols
+)
 
-items_data <- raw_data[, item_cols, drop = FALSE]
+item_cols <- validation_result$item_cols
+items_data <- validation_result$items_data
+validation_issues <- validation_result$validation_issues
+validation_warnings <- validation_result$validation_warnings
 
 # --- 1. Sprawdzenie typow danych ---
 cat("### 1. Sprawdzenie typow danych\n\n")
 
-col_types <- sapply(items_data, class)
-non_numeric <- names(col_types[!col_types %in% c("numeric", "integer")])
+non_numeric <- validation_result$non_numeric_items
 
 if (length(non_numeric) > 0) {
-  cat("**UWAGA:** Nastepujace kolumny nie sa numeryczne i zostana skonwertowane:\n\n")
-  for (col in non_numeric) {
-    cat("-", col, "(typ:", col_types[col], ")\n")
-    items_data[[col]] <- as.numeric(as.character(items_data[[col]]))
+  cat("**UWAGA:** Nastepujace kolumny nie byly numeryczne i zostaly skonwertowane przez silnik:\n\n")
+
+  conversion_diagnostics <- validation_result$conversion_diagnostics
+
+  if (nrow(conversion_diagnostics) > 0) {
+    print(knitr::kable(conversion_diagnostics, row.names = FALSE))
+    cat("\n")
+  } else {
+    cat(paste("-", non_numeric, collapse = "\n"), "\n\n")
   }
-  validation_warnings <- c(validation_warnings,
-    list(paste("Skonwertowano", length(non_numeric), "kolumn na typ numeryczny")))
-  cat("\n")
 } else {
   cat("Wszystkie kolumny itemow sa numeryczne. OK\n\n")
 }
@@ -262,28 +233,17 @@ if (length(non_numeric) > 0) {
 # --- 2. Sprawdzenie wartosci (czy 0/1/NA) ---
 cat("### 2. Sprawdzenie kodowania odpowiedzi (0/1/NA)\n\n")
 
-value_check <- sapply(items_data, function(x) {
-  vals <- unique(x[!is.na(x)])
-  all(vals %in% c(0, 1))
-})
-
-non_binary <- names(value_check[!value_check])
+non_binary <- validation_result$non_binary_items
 
 if (length(non_binary) > 0) {
   cat("**BLAD:** Nastepujace itemy zawieraja wartosci inne niz 0/1:\n\n")
+
   for (col in non_binary) {
-    vals <- sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
+    vals <- validation_result$non_binary_values[[col]]
     cat("-", col, ": wartosci =", paste(vals, collapse = ", "), "\n")
   }
+
   cat("\n**UWAGA:** Itemy z wartosciami innymi niz 0/1 zostana wykluczone z analiz.\n\n")
-
-  # Usun nie-binarne itemy
-  item_cols <- setdiff(item_cols, non_binary)
-  items_data <- items_data[, item_cols, drop = FALSE]
-
-  validation_issues <- c(validation_issues,
-    list(paste("Wykluczono", length(non_binary), "nie-binarnych itemow:",
-               paste(non_binary, collapse = ", "))))
 } else {
   cat("Wszystkie itemy zakodowane poprawnie jako 0/1. OK\n\n")
 }
@@ -320,22 +280,17 @@ cat("- Osoby z >90% brakow:", sum(missing_per_person > 90), "\n\n")
 # --- 4. Itemy z zerowa wariancja ---
 cat("### 4. Sprawdzenie wariancji itemow\n\n")
 
-item_vars <- sapply(items_data, function(x) var(x, na.rm = TRUE))
-zero_var_items <- names(item_vars[item_vars == 0 | is.na(item_vars)])
+zero_var_items <- validation_result$zero_variance_items
 
 if (length(zero_var_items) > 0) {
   cat("**UWAGA:** Itemy z zerowa wariancja (wszyscy odpowiedzieli tak samo):\n\n")
+
   for (col in zero_var_items) {
-    val <- unique(items_data[[col]][!is.na(items_data[[col]])])
+    val <- unique(raw_data[[col]][!is.na(raw_data[[col]])])
     cat("-", col, "(wartosc:", val, ")\n")
   }
+
   cat("\nTe itemy zostana wykluczone z dalszych analiz.\n\n")
-
-  item_cols <- setdiff(item_cols, zero_var_items)
-  items_data <- items_data[, item_cols, drop = FALSE]
-
-  validation_issues <- c(validation_issues,
-    list(paste("Wykluczono", length(zero_var_items), "itemow z zerowa wariancja")))
 } else {
   cat("Wszystkie itemy maja niezerowa wariancje. OK\n\n")
 }
@@ -378,53 +333,42 @@ cat("### 6. Wykrywanie wersji testu / brakow strukturalnych\n\n")
 
 version_var <- params$version_var
 
-# Sprawdz czy mamy zmienna z wersja testu
-if (!is.null(version_var) && version_var %in% names(raw_data)) {
-  versions <- sort(unique(raw_data[[version_var]]))
-  cat("Zmienna wersji testu:", version_var, "\n")
-  cat("Wykryte wersje:", paste(versions, collapse = ", "), "\n\n")
+version_result <- detect_test_versions(
+  raw_data = raw_data,
+  items_data = items_data,
+  item_cols = item_cols,
+  version_var = version_var,
+  min_pattern_prop = params$min_pattern_prop,
+  item_missing_max_prop = params$item_missing_max_prop,
+  detected_version_col = params$detected_version_col
+)
 
-  # Pokaz ktore itemy naleza do ktorej wersji
-  for (v in versions) {
-    v_data <- items_data[raw_data[[version_var]] == v, ]
-    v_items <- names(which(colMeans(!is.na(v_data)) > 0.5))
-    cat("- **Wersja", v, ":**", length(v_items), "itemow\n")
+raw_data <- version_result$raw_data
+detected_version_col <- version_result$detected_version_col
+detected_versions <- version_result$detected_versions
+version_items <- version_result$version_items
+version_data <- version_result$version_data
+has_versions <- version_result$has_multiple_versions
+
+cat("- **Metoda wykrywania:**", version_result$detection_method, "\n")
+
+if (!is.null(version_var) && version_var %in% names(raw_data)) {
+  cat("- **Zmienna wersji testu:**", version_var, "\n")
+}
+
+if (length(version_result$detection_warnings) > 0) {
+  cat("\n**Uwagi diagnostyczne:**\n\n")
+  for (warning_text in version_result$detection_warnings) {
+    cat("-", warning_text, "\n")
   }
+}
+
+if (nrow(version_result$version_summary) > 0) {
+  cat("\n**Wykryte wersje testu:**\n\n")
+  print(knitr::kable(version_result$version_summary, row.names = FALSE))
   cat("\n")
 } else {
-  # Automatyczne wykrywanie wersji na podstawie wzorca brakow
-  # Jesli sa duze bloki NA w tych samych miejscach, to prawdopodobnie missing by design
-
-  missing_pattern <- is.na(items_data)
-  # Klasteryzacja wierszy wedlug wzorca brakow
-  if (any(is.na(items_data))) {
-    pattern_strings <- apply(missing_pattern, 1, function(x) paste(as.integer(x), collapse = ""))
-    unique_patterns <- table(pattern_strings)
-
-    cat("Wykryto", length(unique_patterns), "unikalnych wzorcow brakow danych.\n\n")
-
-    if (length(unique_patterns) <= 10 && length(unique_patterns) > 1) {
-      cat("**Wzorce brakow danych (potencjalnie rozne wersje testu):**\n\n")
-
-      for (i in seq_along(unique_patterns)) {
-        pat <- names(unique_patterns)[i]
-        n_obs <- unique_patterns[i]
-        missing_items <- item_cols[as.integer(strsplit(pat, "")[[1]]) == 1]
-        present_items <- item_cols[as.integer(strsplit(pat, "")[[1]]) == 0]
-
-        cat("- **Wzorzec", i, "** (n =", n_obs, "):",
-            length(present_items), "itemow dostepnych,",
-            length(missing_items), "brakujacych\n")
-      }
-      cat("\n")
-      cat("**Interpretacja:** Jesli wzorce sa regularne (duze bloki brakow),\n")
-      cat("oznacza to prawdopodobnie rozne wersje testu (missing by design).\n")
-      cat("W takim przypadku analizy CTT i IRT beda przeprowadzone oddzielnie\n")
-      cat("dla kazdego wzorca (wersji testu).\n\n")
-    }
-  } else {
-    cat("Brak brakujacych danych - prawdopodobnie jedna wersja testu.\n\n")
-  }
+  cat("\nNie wykryto osobnych wersji testu.\n\n")
 }
 ```
 
@@ -450,62 +394,10 @@ if (has_groups) {
   cat("\n")
 }
 
-# Identyfikacja wersji testu na podstawie wzorca brakow
-# Przypisz kazdy wiersz do "wersji" na podstawie ktore itemy sa dostepne
-if (any(is.na(items_data))) {
-  missing_pattern <- apply(is.na(items_data), 1, function(x) paste(as.integer(x), collapse = ""))
-  pattern_counts <- sort(table(missing_pattern), decreasing = TRUE)
-
-  # Tylko wzorce z > 5% obserwacji traktujemy jako "wersje"
-  major_patterns <- names(pattern_counts[pattern_counts >= nrow(items_data) * 0.05])
-
-  if (length(major_patterns) > 1) {
-    # Przypisz numery wersji
-    raw_data$detected_version <- match(missing_pattern, major_patterns)
-    raw_data$detected_version[is.na(raw_data$detected_version)] <- 0  # nieliczne/mieszane
-
-    # Dla kazdej wersji, zidentyfikuj dostepne itemy
-    version_items <- list()
-    detected_versions <- sort(unique(raw_data$detected_version[raw_data$detected_version > 0]))
-
-    for (v in detected_versions) {
-      v_rows <- which(raw_data$detected_version == v)
-      v_data <- items_data[v_rows, ]
-      # Itemy z < 50% brakow w tej wersji
-      v_items <- item_cols[colMeans(is.na(v_data)) < 0.50]
-      version_items[[as.character(v)]] <- v_items
-    }
-
-    has_versions <- TRUE
-    cat("**Automatycznie wykryto", length(detected_versions), "wersji testu.**\n\n")
-
-    for (v in detected_versions) {
-      v_items <- version_items[[as.character(v)]]
-      n_v <- sum(raw_data$detected_version == v)
-      cat("- Wersja", v, ":", length(v_items), "itemow,", n_v, "osob\n")
-    }
-    cat("\n")
-  } else {
-    has_versions <- FALSE
-    cat("Jedna wersja testu lub brak strukturalnych brakow.\n\n")
-  }
+if (has_versions) {
+  cat("Analizy beda prowadzone oddzielnie dla wykrytych wersji testu.\n\n")
 } else {
-  has_versions <- FALSE
-}
-
-# Jesli podano version_var, uzyj go zamiast wykrytych wersji
-if (!is.null(version_var) && version_var %in% names(raw_data)) {
-  has_versions <- TRUE
-  detected_versions <- sort(unique(raw_data[[version_var]]))
-  raw_data$detected_version <- raw_data[[version_var]]
-
-  version_items <- list()
-  for (v in detected_versions) {
-    v_rows <- which(raw_data$detected_version == v)
-    v_data <- items_data[v_rows, ]
-    v_items <- item_cols[colMeans(is.na(v_data)) < 0.50]
-    version_items[[as.character(v)]] <- v_items
-  }
+  cat("Jedna wersja testu lub brak potrzeby rozdzielania analiz wedlug wersji.\n\n")
 }
 ```
 
@@ -518,7 +410,7 @@ psychometrycznej. Oceniamy jakos itemow i calego testu za pomoca
 nastepujacych wskaznikow:
 
 | Wskaznik | Opis | Kryterium |
-|--------------------------|------------------|-----------------------------|
+|--------------------------|------------------|----------------------------|
 | **Trudnosc (p)** | Odsetek poprawnych odpowiedzi | 0.20 - 0.80 (optymalne) |
 | **Moc roznucujaca (r.cor)** | Skorygowana korelacja item-test | \> 0.30 (dobra), \> 0.20 (akceptowalna) |
 | **r.drop** | Korelacja item-reszta (item-rest) | \> 0.20 |
@@ -527,15 +419,15 @@ nastepujacych wskaznikow:
 
 **Sposob interpretacji:**
 
--   **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob
-    poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a
-    0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznucuja badanych
-    i powinny byc rozwazone do usuniecia.
--   **Moc roznucujaca (r.cor):** Informuje, jak dobrze item rozroznia
-    miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub
-    bliskie 0 wskazuja na problem.
--   **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba
-    itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
+- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob
+  poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a
+  0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznucuja badanych i
+  powinny byc rozwazone do usuniecia.
+- **Moc roznucujaca (r.cor):** Informuje, jak dobrze item rozroznia
+  miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie
+  0 wskazuja na problem.
+- **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba
+  itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
 
 ```{r ctt-analysis}
 # ============================================================================
@@ -849,7 +741,7 @@ prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby
 ### Parametry itemow (IRT)
 
 | Parametr | Symbol | Opis | Zakres typowy |
-|----------------|----------------|----------------|-------------------------|
+|-----------------|-----------------|-----------------|---------------------|
 | Dyskryminacja | a | Jak stromo rysnie krzywa ICC | 0.5 - 2.5 (optymalnie) |
 | Trudnosc | b | Poziom theta, przy ktorym P = 0.50 | -3 do +3 |
 | Zgadywanie | g | Dolna asymptota ICC; prawdopodobienstwo poprawnej odpowiedzi przy bardzo niskiej theta | 0.00 - 0.35 |
@@ -1287,7 +1179,7 @@ zachowuje sie nieprzewidywalnie.
 ### Statystyki dopasowania
 
 | Statystyka | Opis | Kryterium |
-|-----------------------------|-----------------|--------------------------|
+|----------------------------|------------------|--------------------------|
 | **PV-Q1**\* | Statystyka Chalmers & Ng (2017) - bootstrap | p \> 0.05 = dobre dopasowanie |
 | **Infit MNSQ** | Srednia kwadratow reszt wazone informacja | 0.70 - 1.30 (akceptowalne) |
 | **Outfit MNSQ** | Srednia kwadratow reszt niewazona | 0.70 - 1.30 (akceptowalne) |
@@ -1295,16 +1187,16 @@ zachowuje sie nieprzewidywalnie.
 
 ### Sposob interpretacji
 
--   **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa
-    parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model
-    dobrze opisuje dany item.
--   **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej
-    zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30
-    oznaczaja niedopasowanie.
--   **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach
-    theta. Bardziej podatny na wartosci odstajace.
--   **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz
-    PV-Q1\* przy malych probach.
+- **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa
+  parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model dobrze
+  opisuje dany item.
+- **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej
+  zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30
+  oznaczaja niedopasowanie.
+- **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach
+  theta. Bardziej podatny na wartosci odstajace.
+- **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1\*
+  przy malych probach.
 
 ```{r item-fit}
 # ============================================================================
@@ -1539,14 +1431,14 @@ Stosujemy podejscie regresji logistycznej (Swaminathan & Rogers, 1990):
 
 ### Sposob interpretacji
 
--   **Kategoria A:** Item dziala jednakowo w obu grupach. Brak podstaw
-    do interwencji.
--   **Kategoria B:** Umiarkowane roznice. Nalezy zbadac tresc itemu pod
-    katem potencjalnych zrodel obciazenia. Jesli nie ma merytorycznych
-    podstaw, mozna zostawic.
--   **Kategoria C:** Duze roznice miedzy grupami. Item powinien zostac
-    zrewidowany lub usuniety, chyba ze roznica ma uzasadnienie
-    merytoryczne.
+- **Kategoria A:** Item dziala jednakowo w obu grupach. Brak podstaw do
+  interwencji.
+- **Kategoria B:** Umiarkowane roznice. Nalezy zbadac tresc itemu pod
+  katem potencjalnych zrodel obciazenia. Jesli nie ma merytorycznych
+  podstaw, mozna zostawic.
+- **Kategoria C:** Duze roznice miedzy grupami. Item powinien zostac
+  zrewidowany lub usuniety, chyba ze roznica ma uzasadnienie
+  merytoryczne.
 
 ```{r dif-analysis}
 # ============================================================================
@@ -2087,5 +1979,3 @@ cat("\n")
 
 *Raport wygenerowany automatycznie za pomoca szablonu
 `Psychometria_Uniwersalna.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
-
-

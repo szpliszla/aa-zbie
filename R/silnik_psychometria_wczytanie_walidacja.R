@@ -5,21 +5,34 @@
 # ŁADOWANIE PAKIETÓW
 # ============================================================================
 
-library(haven)
-library(readxl)
-library(here)
+# Pakiety wymagane przez funkcje w tym pliku.
+# Blok nie jest wykonywany, ale zostawia jawne deklaracje zaleznosci dla renv.
+# W kodzie funkcji uzywamy wywolan z przestrzenia nazw, np. haven::read_dta(),
+# zeby nie ladowac calych pakietow do sciezki wyszukiwania przez library().
+if (FALSE) {
+  library(haven)
+  library(readxl)
+  library(here)
+}
 
 # ============================================================================
 # WCZYTYWANIE DANYCH
 # ============================================================================
 
-#'@title Wczytanie danych psychometrycznych do analizy
+#' @title Wczytanie danych psychometrycznych do analizy
 #'
-#'@description Proszę wczytać dane w jednym z obsługiwanych formatów:
-#'CSV, DTA, RDS, XLS lub XLSX.
-#'@param data_path ścieźka do pliku danych.
-#'@return Ramka danych ('data.frame').
-#'@export
+#' @description Wczytuje dane z jednego z obsługiwanych formatów: CSV, DTA, RDS,
+#' XLS lub XLSX. Funkcja wymaga jawnie podanej ścieżki do pliku i nie uruchamia
+#' interaktywnego wyboru pliku.
+#'
+#' @param data_path Jednoelementowy wektor tekstowy ze ścieżką do pliku danych.
+#'
+#' @return Ramka danych (`data.frame`).
+#'
+#' @details Funkcja ma kontrolowany efekt wejściowy: odczytuje plik z dysku.
+#' Nie zapisuje plików i nie modyfikuje środowiska globalnego.
+#'
+#' @export
 
 read_psych_data <- function(data_path) {
 
@@ -109,13 +122,11 @@ read_psych_data <- function(data_path) {
   as.data.frame(raw_data)
 }
 
-raw_data <- read_psych_data(here("data", "math_data.csv"))
-
 # ============================================================================
 # IDENTYFIKACJA ITEMOW
 # ============================================================================
 
-#'@title Identyfikacja kolumn itemów
+#' @title Identyfikacja kolumn itemów
 #'
 #' @description Funkcja wyszukuje kolumny rozpoczynajace sie od wskazanego prefiksu.
 #' Jeżeli itemy mają numeryczne końcówki, porządkuje je według numerów.
@@ -124,7 +135,10 @@ raw_data <- read_psych_data(here("data", "math_data.csv"))
 #' @param item_prefix Prefiks nazw kolumn z itemami.
 #' @param exclude_items Opcjonalny wektor nazw itemów do wykluczenia.
 #'
-#' @return Wektor nazw kolumn z itemami
+#' @return Wektor nazw kolumn z itemami.
+#'
+#' @details Funkcja jest czysta: nie zapisuje plików, nie wypisuje komunikatów
+#' i nie modyfikuje przekazanej ramki danych.
 #'
 #' @export
 
@@ -150,7 +164,7 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
     )
   }
 
-item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
+  item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
 
   if (length(item_cols) == 0) {
     stop(paste0(
@@ -161,7 +175,9 @@ item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
     call. = FALSE)
   }
 
-  item_nums <- suppressWarnings(as.numeric(sub(paste0("^", item_prefix), "", item_cols)))
+  item_nums <- suppressWarnings(
+    as.numeric(substr(item_cols, nchar(item_prefix) + 1, nchar(item_cols)))
+  )
 
   if (all(!is.na(item_nums))) {
     item_cols <- item_cols[order(item_nums)]
@@ -178,10 +194,15 @@ item_cols <- names(raw_data)[startsWith(names(raw_data), item_prefix)]
     item_cols <- setdiff(item_cols, exclude_items)
   }
 
+  if (length(item_cols) == 0) {
+    stop(
+      "Po zastosowaniu 'exclude_items' nie pozostały żadne itemy do analizy.",
+      call. = FALSE
+    )
+  }
+
   item_cols
 }
-
-item_cols <- identify_item_columns(raw_data, item_prefix = "mat_")
 
 
 # ============================================================================
@@ -196,6 +217,11 @@ item_cols <- identify_item_columns(raw_data, item_prefix = "mat_")
 #' @param item_cols Wektor nazw kolumn z itemami
 
 #' @return Lista z informacjami o problemach walidacyjnych
+#'
+#' @details Funkcja jest czysta względem środowiska zewnętrznego: nie zapisuje
+#' plików, nie wypisuje komunikatów i nie modyfikuje przekazanej ramki danych.
+#' Zwraca oczyszczone dane itemowe oraz diagnostyki walidacyjne.
+#'
 #' @export
 
 validate_items_data <- function(raw_data, item_cols) {
@@ -365,8 +391,6 @@ validate_items_data <- function(raw_data, item_cols) {
   )
 }
 
-wyniki_walidacji <- validate_items_data(raw_data, item_cols)
-
 # ============================================================================
 # WYKRYWANIE WERSJI TESTU
 # ============================================================================
@@ -385,6 +409,8 @@ wyniki_walidacji <- validate_items_data(raw_data, item_cols)
 #'
 #' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyką.
 #'
+#' @details Funkcja nie modyfikuje przekazanej ramki danych w miejscu. Zwraca
+#' kopię `raw_data` z dodaną kolumną wskazaną przez `detected_version_col`.
 #'
 #' @export
 
@@ -696,19 +722,3 @@ detect_test_versions <- function(
     item_missing_max_prop = item_missing_max_prop
   )
 }
-
-
-
-version_result <- detect_test_versions(
-  raw_data              = raw_data,
-  items_data            = wyniki_walidacji$items_data,
-  item_cols             = wyniki_walidacji$item_cols,
-  version_var           = "wersja",
-  min_pattern_prop      = 0.05,
-  item_missing_max_prop = 0.90,
-  detected_version_col  = ".detected_version"
-)
-
-rm(list = setdiff(ls(), "version_result"))
-
-
