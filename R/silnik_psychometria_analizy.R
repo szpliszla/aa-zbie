@@ -136,7 +136,12 @@ z_score <- function(x) {
 #' @return Obiekt klasy `ggplot`.
 #'
 #' @examples
-#' df <- data.frame(Item = c("i1", "i2"), Trudnosc_p = c(0.4, 0.7), r_cor = c(0.2, 0.5), Ocena = c("Akceptowalny", "Dobry"))
+#' df <- data.frame(
+#'   Item = c("i1", "i2"),
+#'   Trudnosc_p = c(0.4, 0.7),
+#'   r_cor = c(0.2, 0.5),
+#'   Ocena = c("Akceptowalny", "Dobry")
+#' )
 #' make_ctt_plot(df, "Przyklad")
 #'
 #' @export
@@ -163,13 +168,15 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 
 #' @title Analiza klasycznej teorii testów (CTT) dla zestawu itemow
 #'
-#' @description Oblicza podstawowe wskazniki CTT dla przekazanych itemow, w tym rzetelnosc, statystyki itemow, klasyfikacje jakosci itemow oraz obiekt wykresu mapy itemow. 
+#' @description Oblicza podstawowe wskazniki CTT dla przekazanych itemow, w tym rzetelnosc, statystyki itemow, klasyfikacje jakosci itemow oraz obiekt wykresu mapy itemow.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami na itemy. Kolumny odpowiadaja itemom, a wiersze osobom.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu obiektow wykresow.
 #' @param correlation_threshold_negative Prog korelacji `r_cor`, ponizej ktorego itemy sa zwracane jako slabe w polu `weak_items`.
 #'
 #' @return Lista zawierajaca status, statystyki rzetelnosci, statystyki itemow, podsumowania, wykresy i oczyszczone dane itemowe.
+#'
+#' @importFrom rlang .data
 #'
 #' @examples
 #' data_items <- data.frame(i1 = c(0, 1, 1), i2 = c(1, 1, 0), i3 = c(0, 0, 1))
@@ -182,7 +189,7 @@ run_ctt_for_items <- function(
     correlation_threshold_negative = 0
 ) {
 
-  vars <- sapply(data_items, var, na.rm = TRUE)
+  vars <- sapply(data_items, stats::var, na.rm = TRUE)
   zero_var <- names(vars[vars == 0 | is.na(vars)])
 
   if (length(zero_var) > 0) {
@@ -526,12 +533,14 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
 #'
 #' @return Obiekt klasy `ggplot` albo `NULL`, gdy nie da sie utworzyc grup theta.
 #'
+#' @importFrom rlang .data
+#'
 #' @examples
 #' # make_empirical_icc_plot(model, data_items, theta_vals)
 #'
 #' @export
 make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly test", model_name = "IRT") {
-  breaks_theta <- unique(quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
+  breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
 
   if (length(breaks_theta) < 3) {
     return(NULL)
@@ -622,7 +631,7 @@ run_irt_for_items <- function(
     show_empirical_icc = TRUE
 ) {
 
-  vars <- sapply(data_items, var, na.rm = TRUE)
+  vars <- sapply(data_items, stats::var, na.rm = TRUE)
   data_items <- data_items[, vars > 0 & !is.na(vars), drop = FALSE]
 
   complete_rows <- rowSums(!is.na(data_items)) > 0
@@ -672,9 +681,9 @@ run_irt_for_items <- function(
   )
 
   if (!is.null(model_3pl)) {
-    anova_result <- anova(model_1pl, model_2pl, model_3pl)
+    anova_result <- stats::anova(model_1pl, model_2pl, model_3pl)
   } else {
-    anova_result <- anova(model_1pl, model_2pl)
+    anova_result <- stats::anova(model_1pl, model_2pl)
   }
 
   comparison_df <- data.frame(
@@ -967,7 +976,7 @@ run_dif_pair <- function(
   d_theta <- theta_vec[mask]
 
   good_items <- sapply(d_items, function(x) {
-    var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
+    stats::var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
   })
 
   d_items <- d_items[, good_items, drop = FALSE]

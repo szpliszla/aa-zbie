@@ -12,7 +12,6 @@
 if (FALSE) {
   library(haven)
   library(readxl)
-  library(here)
 }
 
 # ============================================================================
@@ -69,14 +68,14 @@ read_psych_data <- function(data_path) {
     file_ext,
 
     "csv" = {
-      data_csv <- read.csv(
+      data_csv <- utils::read.csv(
         data_path,
         stringsAsFactors = FALSE,
         check.names = FALSE
       )
 
       if (ncol(data_csv) == 1) {
-        data_csv2 <- read.csv2(
+        data_csv2 <- utils::read.csv2(
           data_path,
           stringsAsFactors = FALSE,
           check.names = FALSE
@@ -169,7 +168,7 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
   if (length(item_cols) == 0) {
     stop(paste0(
       "BLAD: Nie znaleziono zadnych kolumn z prefiksem '", item_prefix, "'.\n",
-      "Dostepne kolumny: ", paste(head(names(raw_data), 20), collapse = ", "),
+      "Dostepne kolumny: ", paste(utils::head(names(raw_data), 20), collapse = ", "),
       "\nSprawdz parametr 'item_prefix'."
     ),
     call. = FALSE)
@@ -349,7 +348,7 @@ validate_items_data <- function(raw_data, item_cols) {
 
   item_vars <- vapply(
     items_data,
-    function(x) var(x, na.rm = TRUE),
+    function(x) stats::var(x, na.rm = TRUE),
     numeric(1)
   )
 

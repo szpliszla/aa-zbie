@@ -4,7 +4,7 @@ Version: 0.1.0
 Authors@R: 
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
@@ -13,18 +13,10 @@ Imports:
   mirt,
   ggplot2,
   rlang,
-  dplyr,
-  tidyr,
-  knitr,
-  kableExtra,
-  corrplot,
   writexl,
-  scales,
-  reshape2,
   sirt,
   haven,
-  readxl,
-  here
+  readxl
 Suggests:
     testthat,
     rmarkdown

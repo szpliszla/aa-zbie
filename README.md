@@ -1,11 +1,3 @@
----
-title: "README.md"
-author: "Jola Pisarek"
-date: "`r Sys.Date()`"
-output: html_document
----
-
-
 # Automatyzacja analiz w ZBIE
 
 Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania analiz 
