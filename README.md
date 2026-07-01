@@ -7,34 +7,27 @@ Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania anali
 
 Projekt korzysta z systemu `renv`do izolacji środowiska. Aby go uruchomić na nowym komputerze:
 
-1. Sklonuj to repozytorium na swój komputer.
-2. Otwórz plik projektu `aa-zbie.Rproj` w RStudio.
-3. Zainstaluj pakiet `devtools`:
+1. Zainstaluj pakiet `pak`:
    ```r
-   install.packages('devtools')
+   install.packages('pak')
    ```
-4. W konsoli RStudio wpisz komendę
+2. Zaintaluj ten pakiet. W konsoli R wykonaj:
    ```r
-   devtools::install()
+   pak::pkg_install('szpliszla/aa-zbie')
    ```
-5. Wygeneruj raport za pomocą komendy:
+3. Wygeneruj raport za pomocą komendy:
    ```r
-   rmarkdown::render(
-    'reports/psychometria_raport.Rmd',
-    params = list(
-      data_path = "ścieżka do pliku z danymi",
-      item_prefix = "prefiks itemów",
-      group_var = "zmienna grupująca",
-      id_var = "id_ucznia",
-      dif_group_var = "grupa"
-    )
+   aazbie::render_report(
+      "ścieżka pod którą zapisany zostanie raport",
+      "ścieżka do pliku z danymi",
+      "prefiks itemów",
+      "zmienna grupująca",
+      "zmienna z id_ucznia",
+      "zmienna grupująca dla diff-ów"
   )
   ```
-  gdzie:
-  * `item_prefix` opisać
-  * `group_var` opisać
-  * `id_var` opisać
-  * `dif_group_var` opisać
+  Dokładny opis parametrów można znaleźć w dokumentacji funkcji `aazbie::render_report`
+  (aby ją zobaczyć, wykonaj w konsoli R `?aazbie::render_report`).
 
 # Struktura projektu
 
