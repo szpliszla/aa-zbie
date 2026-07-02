@@ -16,7 +16,8 @@ Imports:
   writexl,
   sirt,
   haven,
-  readxl
+  readxl,
+  fs
 Suggests:
     testthat,
     rmarkdown
