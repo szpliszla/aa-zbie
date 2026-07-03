@@ -5,4 +5,4 @@
 *.html
 /reports/*_files/
 /reports/*xlsx
-/man
+

@@ -5,7 +5,7 @@ test_that('raport na przykładowych danych działa', {
   }
   render_report(
       outpath,
-      "../data/math_data.csv",
+      system.file("extdata", "math_data.csv", package = "aazbie"),
       "mat_",
       "grupa",
       "id_ucznia",

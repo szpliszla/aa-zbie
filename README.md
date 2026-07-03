@@ -34,7 +34,10 @@ Projekt korzysta z systemu `renv`do izolacji środowiska. Aby go uruchomić na n
 ```
 ├── aa-zbie.Rproj
 ├── data
-│   └── math_data.csv
+│   └── math_data.rda
+├── inst
+│   └── extdata
+│       └── math_data.csv
 ├── renv
 │   ├── activate.R
 │   ├── library
