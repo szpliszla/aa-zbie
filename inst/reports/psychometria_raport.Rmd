@@ -14,7 +14,7 @@ output:
     df_print: paged
 params:
   # --- Ścieżki i identyfikatory struktur ---
-  data_path: "../data/math_data.csv"
+  data_path: !expr system.file("extdata", "math_data.csv", package = "aazbie")
   item_prefix: "mat_"
   id_var: "id_ucznia"
   group_var: "grupa"
@@ -139,7 +139,7 @@ Raport jest konfigurowany przez parametry w nagłówku YAML:
 ``` r
 rmarkdown::render("Psychometria_Uniwersalna.Rmd",
   params = list(
-    data_path         = "math_data.csv",
+    data_path         = system.file("extdata", "math_data.csv", package = "aazbie"),
     item_prefix       = "mat_",
     id_var            = "id_ucznia",
     dif_group_var     = "grupa",

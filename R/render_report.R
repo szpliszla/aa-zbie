@@ -48,14 +48,8 @@
 #'
 #' @examples
 #' \dontrun{
-#' render_report(
-#'   output_path = "raport.html",
-#'   data_path = "data/math_data.csv",
-#'   item_prefix = "mat_",
-#'   group_var = "grupa",
-#'   id_var = "id_ucznia",
-#'   dif_group_var = "grupa"
-#' )
+#' data_path <- system.file("extdata", "math_data.csv", package = "aazbie")
+#' render_report("raport.html", data_path, "mat_", "grupa", "id_ucznia", "grupa")
 #' }
 #'
 #' @export
@@ -66,13 +60,12 @@ render_report <- function(output_path, data_path, item_prefix, group_var, id_var
   if (!fs::is_absolute_path(data_path)) {
     data_path = fs::path_join(c(getwd(), data_path))
   }
-  codedir = utils::getSrcDirectory(function(){})
-  if (length(codedir) == 0) {
-    # R CMD check
-    codedir = "../../00_pkg_src/aazbie/R"
+  rmd_path <- system.file("reports", "psychometria_raport.Rmd", package = "aazbie")
+  if (rmd_path == "") {
+    stop("Nie znaleziono szablonu raportu w zainstalowanym pakiecie.", call. = FALSE)
   }
   rmarkdown::render(
-    fs::path_join(c(codedir, '../reports/psychometria_raport.Rmd')),
+    rmd_path,
     output_file = output_path,
     params = list(
       data_path = data_path,

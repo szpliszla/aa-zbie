@@ -1230,6 +1230,7 @@ run_dif_analysis <- function(
 #' @param has_versions Wartosc logiczna informujaca, czy dopisywac wykryta wersje testu do wynikow osob.
 #' @param detected_version_col Nazwa kolumny w `raw_data` zawierajacej wykryta wersje testu.
 #' @param output_file Opcjonalna sciezka do pliku XLSX. Gdy `NULL`, nazwa jest tworzona na podstawie `data_path`.
+#' @param overwrite Wartosc logiczna. Gdy `FALSE` (domyslnie), funkcja zwraca blad jesli plik wynikowy juz istnieje. Ustaw `TRUE`, aby nadpisac istniejacy plik.
 #'
 #' @return Lista zawierajaca status eksportu, sciezke do pliku wynikowego oraz nazwy utworzonych arkuszy.
 #'
@@ -1248,7 +1249,8 @@ export_results_to_excel <- function(
     group_var = NULL,
     has_versions = FALSE,
     detected_version_col = "detected_version",
-    output_file = NULL
+    output_file = NULL,
+    overwrite = FALSE
 ) {
 
   export_sheets <- list()
@@ -1365,6 +1367,15 @@ export_results_to_excel <- function(
 
   if (is.null(output_file)) {
     output_file <- sub("\\.[^.]+$", "_wyniki.xlsx", basename(data_path))
+  }
+
+  if (!overwrite && file.exists(output_file)) {
+    return(list(
+      status = make_status(FALSE, "file_exists",
+        paste0("Plik '", output_file, "' juz istnieje. Uzyj overwrite = TRUE, aby nadpisac.")),
+      output_file = output_file,
+      sheets = names(export_sheets)
+    ))
   }
 
   writexl::write_xlsx(export_sheets, path = output_file)
