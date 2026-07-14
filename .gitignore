@@ -3,6 +3,7 @@
 .RData
 .Ruserdata
 *.html
-/reports/*_files/
-/reports/*xlsx
+/inst/reports/*_files/
+/inst/reports/*xlsx
+/man
 
