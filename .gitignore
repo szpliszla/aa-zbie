@@ -5,5 +5,4 @@
 *.html
 /inst/reports/*_files/
 /inst/reports/*xlsx
-/man
 
