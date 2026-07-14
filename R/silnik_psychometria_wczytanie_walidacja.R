@@ -2,7 +2,7 @@
 # FUNKCJE POMOCNICZE - RAPORT PSYCHOMETRYCZNY
 # ============================================================================
 # ============================================================================
-# ŁADOWANIE PAKIETÓW
+# LADOWANIE PAKIETOW
 # ============================================================================
 
 # Pakiety wymagane przez funkcje w tym pliku.
@@ -20,16 +20,16 @@ if (FALSE) {
 
 #' @title Wczytanie danych psychometrycznych do analizy
 #'
-#' @description Wczytuje dane z jednego z obsługiwanych formatów: CSV, DTA, RDS,
-#' XLS lub XLSX. Funkcja wymaga jawnie podanej ścieżki do pliku i nie uruchamia
+#' @description Wczytuje dane z jednego z obslugiwanych formatow: CSV, DTA, RDS,
+#' XLS lub XLSX. Funkcja wymaga jawnie podanej sciezki do pliku i nie uruchamia
 #' interaktywnego wyboru pliku.
 #'
-#' @param data_path Jednoelementowy wektor tekstowy ze ścieżką do pliku danych.
+#' @param data_path Jednoelementowy wektor tekstowy ze sciezka do pliku danych.
 #'
 #' @return Ramka danych (`data.frame`).
 #'
-#' @details Funkcja ma kontrolowany efekt wejściowy: odczytuje plik z dysku.
-#' Nie zapisuje plików i nie modyfikuje środowiska globalnego.
+#' @details Funkcja ma kontrolowany efekt wejsciowy: odczytuje plik z dysku.
+#' Nie zapisuje plikow i nie modyfikuje srodowiska globalnego.
 #'
 #' @export
 
@@ -43,7 +43,7 @@ read_psych_data <- function(data_path) {
     data_path == ""
   ) {
     stop(
-      "Argument 'data_path' musi być pojedynczą, niepustą ścieżką do pliku.",
+      "Argument 'data_path' musi byc pojedyncza, niepusta sciezka do pliku.",
       call. = FALSE
     )
   }
@@ -106,14 +106,14 @@ read_psych_data <- function(data_path) {
     },
 
     stop(
-      paste0("Nieobsługiwany format pliku: ", file_ext),
+      paste0("Nieobslugiwany format pliku: ", file_ext),
       call. = FALSE
     )
   )
 
   if (!is.data.frame(raw_data)) {
     stop(
-      "Wczytany obiekt nie jest ramką danych.",
+      "Wczytany obiekt nie jest ramka danych.",
       call. = FALSE
     )
   }
@@ -125,18 +125,18 @@ read_psych_data <- function(data_path) {
 # IDENTYFIKACJA ITEMOW
 # ============================================================================
 
-#' @title Identyfikacja kolumn itemów
+#' @title Identyfikacja kolumn itemow
 #'
 #' @description Funkcja wyszukuje kolumny rozpoczynajace sie od wskazanego prefiksu.
-#' Jeżeli itemy mają numeryczne końcówki, porządkuje je według numerów.
+#' Jezeli itemy maja numeryczne koncowki, porzadkuje je wedlug numerow.
 #'
 #' @param raw_data Ramka danych
 #' @param item_prefix Prefiks nazw kolumn z itemami.
-#' @param exclude_items Opcjonalny wektor nazw itemów do wykluczenia.
+#' @param exclude_items Opcjonalny wektor nazw itemow do wykluczenia.
 #'
 #' @return Wektor nazw kolumn z itemami.
 #'
-#' @details Funkcja jest czysta: nie zapisuje plików, nie wypisuje komunikatów
+#' @details Funkcja jest czysta: nie zapisuje plikow, nie wypisuje komunikatow
 #' i nie modyfikuje przekazanej ramki danych.
 #'
 #' @export
@@ -145,7 +145,7 @@ read_psych_data <- function(data_path) {
 identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
   if (!is.data.frame(raw_data)) {
     stop(
-      "Argument 'raw_data' musi być ramką danych.",
+      "Argument 'raw_data' musi byc ramka danych.",
       call. = FALSE
     )
   }
@@ -158,7 +158,7 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
     item_prefix == ""
   ) {
     stop(
-      "Argument 'item_prefix' musi być pojedynczym, niepustym ciągiem znaków.",
+      "Argument 'item_prefix' musi byc pojedynczym, niepustym ciagiem znakow.",
       call. = FALSE
     )
   }
@@ -195,7 +195,7 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 
   if (length(item_cols) == 0) {
     stop(
-      "Po zastosowaniu 'exclude_items' nie pozostały żadne itemy do analizy.",
+      "Po zastosowaniu 'exclude_items' nie pozostaly zadne itemy do analizy.",
       call. = FALSE
     )
   }
@@ -208,17 +208,17 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 # WALIDACJA DANYCH
 # ============================================================================
 
-#' @title Walidacja itemów testowych
+#' @title Walidacja itemow testowych
 #'
-#' @description Sprawdza typ danych, binarność itemów oraz wariancję
+#' @description Sprawdza typ danych, binarnosc itemow oraz wariancje
 #'
 #' @param raw_data Ramka danych
 #' @param item_cols Wektor nazw kolumn z itemami
 
 #' @return Lista z informacjami o problemach walidacyjnych
 #'
-#' @details Funkcja jest czysta względem środowiska zewnętrznego: nie zapisuje
-#' plików, nie wypisuje komunikatów i nie modyfikuje przekazanej ramki danych.
+#' @details Funkcja jest czysta wzgledem srodowiska zewnetrznego: nie zapisuje
+#' plikow, nie wypisuje komunikatow i nie modyfikuje przekazanej ramki danych.
 #' Zwraca oczyszczone dane itemowe oraz diagnostyki walidacyjne.
 #'
 #' @export
@@ -227,7 +227,7 @@ validate_items_data <- function(raw_data, item_cols) {
 
   if (!is.data.frame(raw_data)) {
     stop(
-      "Argument 'raw_data' musi być ramką danych.",
+      "Argument 'raw_data' musi byc ramka danych.",
       call. = FALSE
     )
   }
@@ -239,7 +239,7 @@ validate_items_data <- function(raw_data, item_cols) {
     length(item_cols) == 0
   ) {
     stop(
-      "Argument 'item_cols' musi być ciągiem znaków o długości większej niż 0.",
+      "Argument 'item_cols' musi byc ciagiem znakow o dlugosci wiekszej niz 0.",
       call. = FALSE
     )
   }
@@ -304,7 +304,7 @@ validate_items_data <- function(raw_data, item_cols) {
     )
   }
 
-  # Lukasz: dobre miejsce na "wpięcie się" z danymi kategorycznymi.
+  # Lukasz: dobre miejsce na "wpiecie sie" z danymi kategorycznymi.
 
   value_check <- vapply(items_data, function(x) {
     vals <- unique(x[!is.na(x)])
@@ -341,7 +341,7 @@ validate_items_data <- function(raw_data, item_cols) {
 
   if (length(item_cols) == 0) {
     stop(
-      "Po wykluczeniu itemów niebinarnych nie pozostały żadne itemy do analizy.",
+      "Po wykluczeniu itemow niebinarnych nie pozostaly zadne itemy do analizy.",
       call. = FALSE
     )
   }
@@ -363,7 +363,7 @@ validate_items_data <- function(raw_data, item_cols) {
       validation_issues,
       list(
         paste0(
-          "Wykluczono itemy z zerową wariancją: ",
+          "Wykluczono itemy z zerowa wariancja: ",
           paste(zero_var_items, collapse = ", ")
         )
       )
@@ -372,7 +372,7 @@ validate_items_data <- function(raw_data, item_cols) {
 
   if (length(item_cols) == 0) {
     stop(
-      "Po walidacji nie pozostały żadne itemy do analizy.",
+      "Po walidacji nie pozostaly zadne itemy do analizy.",
       call. = FALSE
     )
   }
@@ -396,20 +396,20 @@ validate_items_data <- function(raw_data, item_cols) {
 
 #' @title Wykrywanie wersji testu
 #'
-#' @description Wykrywa wersje testu z kolumny wersji lub ze wzorców braków danych.
+#' @description Wykrywa wersje testu z kolumny wersji lub ze wzorcow brakow danych.
 #'
 #' @param raw_data Ramka danych.
 #' @param items_data Ramka danych z itemami.
 #' @param item_cols Wektor nazw kolumn z itemami.
-#' @param version_var Opcjonalna nazwa zmiennej z wersją testu.
-#' @param min_pattern_prop Minimalny udział wzorca braków, aby uznać go za wersję.
-#' @param item_missing_max_prop Maksymalny udział braków itemu w danej wersji.
-#' @param detected_version_col Nazwa roboczej kolumny z wykrytą wersją.
+#' @param version_var Opcjonalna nazwa zmiennej z wersja testu.
+#' @param min_pattern_prop Minimalny udzial wzorca brakow, aby uznac go za wersje.
+#' @param item_missing_max_prop Maksymalny udzial brakow itemu w danej wersji.
+#' @param detected_version_col Nazwa roboczej kolumny z wykryta wersja.
 #'
-#' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyką.
+#' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyka.
 #'
 #' @details Funkcja nie modyfikuje przekazanej ramki danych w miejscu. Zwraca
-#' kopię `raw_data` z dodaną kolumną wskazaną przez `detected_version_col`.
+#' kopie `raw_data` z dodana kolumna wskazana przez `detected_version_col`.
 #'
 #' @export
 
@@ -426,11 +426,11 @@ detect_test_versions <- function(
 ) {
 
   if (!is.data.frame(raw_data)) {
-    stop("Argument 'raw_data' musi być ramką danych.", call. = FALSE)
+    stop("Argument 'raw_data' musi byc ramka danych.", call. = FALSE)
   }
 
   if (!is.data.frame(items_data)) {
-    stop("Argument 'items_data' musi być ramką danych.", call. = FALSE)
+    stop("Argument 'items_data' musi byc ramka danych.", call. = FALSE)
   }
 
   if (
@@ -439,12 +439,12 @@ detect_test_versions <- function(
     !is.character(item_cols) ||
     length(item_cols) == 0
   ) {
-    stop("Argument 'item_cols' musi być niepustym wektorem nazw kolumn.", call. = FALSE)
+    stop("Argument 'item_cols' musi byc niepustym wektorem nazw kolumn.", call. = FALSE)
   }
 
   if (nrow(raw_data) != nrow(items_data)) {
     stop(
-      "Argumenty 'raw_data' i 'items_data' muszą mieć tę samą liczbę wierszy.",
+      "Argumenty 'raw_data' i 'items_data' musza miec te sama liczbe wierszy.",
       call. = FALSE
     )
   }
@@ -454,7 +454,7 @@ detect_test_versions <- function(
   if (length(missing_item_cols) > 0) {
     stop(
       paste0(
-        "W 'items_data' brakuje następujących itemów: ",
+        "W 'items_data' brakuje nastepujacych itemow: ",
         paste(missing_item_cols, collapse = ", ")
       ),
       call. = FALSE
@@ -466,7 +466,7 @@ detect_test_versions <- function(
     (!is.character(version_var) || length(version_var) != 1 || version_var == "")
   ) {
     stop(
-      "Argument 'version_var' musi być pojedynczą nazwą kolumny albo NULL.",
+      "Argument 'version_var' musi byc pojedyncza nazwa kolumny albo NULL.",
       call. = FALSE
     )
   }
@@ -478,7 +478,7 @@ detect_test_versions <- function(
     min_pattern_prop >= 1
   ) {
     stop(
-      "Argument 'min_pattern_prop' musi być pojedynczą liczbą z przedziału (0, 1).",
+      "Argument 'min_pattern_prop' musi byc pojedyncza liczba z przedzialu (0, 1).",
       call. = FALSE
     )
   }
@@ -490,7 +490,7 @@ detect_test_versions <- function(
     item_missing_max_prop > 1
   ) {
     stop(
-      "Argument 'item_missing_max_prop' musi być pojedynczą liczbą z przedziału (0, 1].",
+      "Argument 'item_missing_max_prop' musi byc pojedyncza liczba z przedzialu (0, 1].",
       call. = FALSE
     )
   }
@@ -501,7 +501,7 @@ detect_test_versions <- function(
     detected_version_col == ""
   ) {
     stop(
-      "Argument 'detected_version_col' musi być pojedynczą nazwą kolumny.",
+      "Argument 'detected_version_col' musi byc pojedyncza nazwa kolumny.",
       call. = FALSE
     )
   }
@@ -510,7 +510,7 @@ detect_test_versions <- function(
     stop(
       paste0(
         "Kolumna '", detected_version_col,
-        "' już istnieje w danych. Wybierz inną nazwę przez 'detected_version_col'."
+        "' juz istnieje w danych. Wybierz inna nazwe przez 'detected_version_col'."
       ),
       call. = FALSE
     )
@@ -599,7 +599,7 @@ detect_test_versions <- function(
         paste0(
           "Nie znaleziono zmiennej wersji testu: ",
           version_var,
-          ". Podjęto próbę wykrycia wersji na podstawie braków danych."
+          ". Podjeto probe wykrycia wersji na podstawie brakow danych."
         )
       )
     }
@@ -639,7 +639,7 @@ detect_test_versions <- function(
             paste0(
               "Nie przypisano wersji dla ",
               length(unclassified_rows),
-              " obserwacji z rzadkimi wzorcami braków danych."
+              " obserwacji z rzadkimi wzorcami brakow danych."
             )
           )
         }
@@ -647,14 +647,14 @@ detect_test_versions <- function(
       } else {
         detection_warnings <- c(
           detection_warnings,
-          "Nie wykryto żadnego głównego wzorca braków danych spełniającego kryterium krytyczne."
+          "Nie wykryto zadnego glownego wzorca brakow danych spelniajacego kryterium krytyczne."
         )
       }
 
     } else {
       detection_warnings <- c(
         detection_warnings,
-        "Nie podano zmiennej wersji i nie wykryto braków danych pozwalających rozpoznać wersje."
+        "Nie podano zmiennej wersji i nie wykryto brakow danych pozwalajacych rozpoznac wersje."
       )
     }
   }
@@ -695,7 +695,7 @@ detect_test_versions <- function(
     detection_warnings <- c(
       detection_warnings,
       paste0(
-        "Dla następujących wersji nie przypisano żadnych itemów: ",
+        "Dla nastepujacych wersji nie przypisano zadnych itemow: ",
         paste(empty_version_items, collapse = ", ")
       )
     )
