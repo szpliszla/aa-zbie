@@ -24,10 +24,10 @@ Projekt korzysta z systemu `renv`do izolacji środowiska. Aby go uruchomić na n
       "zmienna grupująca",
       "zmienna z id_ucznia",
       "zmienna grupująca dla diff-ów"
-  )
-  ```
-  Dokładny opis parametrów można znaleźć w dokumentacji funkcji `aazbie::render_report`
-  (aby ją zobaczyć, wykonaj w konsoli R `?aazbie::render_report`).
+   )
+   ```
+   Dokładny opis parametrów można znaleźć w dokumentacji funkcji `aazbie::render_report`
+   (aby ją zobaczyć, wykonaj w konsoli R `?aazbie::render_report`).
 
 # Struktura projektu
 
