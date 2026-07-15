@@ -73,83 +73,9 @@ if (!exists("read_psych_data", mode = "function")) {
 }
 ```
 
-# Instrukcja przygotowania danych {.tabset}
+# Instrukcja przygotowania danych
 
-## Wymagania dotyczące danych
-
-Ten raport jest **uniwersalnym narzędziem** do przeprowadzania analiz
-psychometrycznych na danych z testów edukacyjnych i psychologicznych.
-Aby raport działał poprawnie, dane muszą spełnić określone wymagania.
-
-### Format danych
-
-- **Plik CSV** (kodowanie UTF-8, separator: przecinek lub średnik)
-- **Plik XLSX** (format Microsoft Excel)
-- **Plik DTA** (format Stata)
-- **Plik RDS** (format R)
-
-### Struktura danych
-
-Dane muszą być w formacie **szerokim** (wide format) – każdy wiersz to
-jedna osoba badana, każda kolumna to jedna zmienna.
-
-| Kolumna | Opis | Wymagane |
-|--------------------------|------------------|----------------------------|
-| Zmienne identyfikujące (ID) | ID osoby, ID szkoły itp. | Opcjonalne |
-| **Itemy testowe** | Odpowiedzi na zadania testu | **TAK** |
-| Zmienna grupująca | Np. grupa eksperymentalna/kontrolna, płeć | Opcjonalne (wymagane dla DIF) |
-| Wersja testu | Różne wersje/formularze testu | Opcjonalne |
-
-### Kodowanie odpowiedzi
-
-- Itemy muszą być zakodowane jako **0/1** (dychotomicznie)
-  - `0` = odpowiedź błędna
-  - `1` = odpowiedź poprawna
-  - `NA` = brak odpowiedzi (dozwolone)
-- Wszystkie itemy testowe muszą mieć **wspólny prefiks** w nazwie (np.
-  `mat_`, `item_`, `q_`)
-
-### Parametry raportu
-
-Raport jest konfigurowany przez parametry w nagłówku YAML:
-
-- `data_path`: ścieżka do pliku z danymi
-- `item_prefix`: prefiks nazw kolumn z itemami (np. `"mat_"`)
-- `id_var`: nazwa zmiennej z identyfikatorem osoby – opcjonalna
-- `exclude_items`: lista itemów do wykluczenia z analiz (np.
-  `["mat_5", "mat_12"]`) – opcjonalna
-- `version_var`: nazwa zmiennej z wersją testu – opcjonalna (jeśli
-  `NULL`, silnik uruchomi automatyczną heurystykę)
-- `min_pattern_prop`: minimalny % wielkości próby, aby wzorzec braków
-  został uznany za wersję testu (np. `0.05`)
-- `item_missing_max_prop`: maksymalny odsetek braków danych dla itemu w
-  danej wersji, powyżej którego jest usuwany (np. `0.90`)
-- `alpha_threshold`: próg rzetelności Alfa Cronbacha (np. `0.70`)
-- `discrimination_min`: minimalna akceptowalna moc dyskryminacyjna itemu
-  (np. `0.30`)
-- `correlation_threshold_negative`: próg dla korelacji ujemnych (np.
-  `0.00`)
-- `correlation_threshold_low`: próg dla niskich korelacji item-test (np.
-  `0.15`)
-- `dif_group_var`: zmienna do analizy DIF (np. `"grupa"`, `"płeć"`) –
-  opcjonalna
-
-### Przykladowe wywolanie
-
-``` r
-rmarkdown::render("Psychometria_Uniwersalna.Rmd",
-  params = list(
-    data_path         = system.file("extdata", "math_data.csv", package = "aazbie"),
-    item_prefix       = "mat_",
-    id_var            = "id_ucznia",
-    dif_group_var     = "grupa",
-    alpha_threshold   = 0.80,          
-    version_var       = NULL
-  )
-)
-```
-
-# Wczytywanie i walidacja danych
+Opis wymagań dotyczących formatu danych, struktury, kodowania odpowiedzi oraz parametrów funkcji `aazbie::render_report()` znajduje się w [README](https://github.com/szpliszla/aa-zbie#readme) projektu. \# Wczytywanie i walidacja danych
 
 ```{r load-data}
 # ============================================================================
@@ -405,9 +331,7 @@ if (has_versions) {
 
 ## Opis metody
 
-**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy
-psychometrycznej. Oceniamy jakos itemow i calego testu za pomoca
-nastepujacych wskaznikow:
+**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy psychometrycznej. Oceniamy jakos itemow i calego testu za pomoca nastepujacych wskaznikow:
 
 | Wskaznik | Opis | Kryterium |
 |--------------------------|------------------|----------------------------|
@@ -419,15 +343,9 @@ nastepujacych wskaznikow:
 
 **Sposob interpretacji:**
 
-- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob
-  poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a
-  0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznucuja badanych i
-  powinny byc rozwazone do usuniecia.
-- **Moc roznucujaca (r.cor):** Informuje, jak dobrze item rozroznia
-  miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie
-  0 wskazuja na problem.
-- **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba
-  itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
+- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a 0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznucuja badanych i powinny byc rozwazone do usuniecia.
+- **Moc roznucujaca (r.cor):** Informuje, jak dobrze item rozroznia miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie 0 wskazuja na problem.
+- **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
 
 ```{r ctt-analysis}
 # ============================================================================
@@ -724,14 +642,12 @@ if (has_versions) {
 
 ## Opis metody
 
-**Teoria Odpowiedzi na Pozycje Testowe (IRT)** modeluje
-prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby
-(theta) i parametrow itemu.
+**Teoria Odpowiedzi na Pozycje Testowe (IRT)** modeluje prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby (theta) i parametrow itemu.
 
 ### Modele
 
 | Model | Parametry | Opis |
-|---------------------|---------------------------------|------------------|
+|----------------------|--------------------------------|-------------------|
 | **1PL (Rasch)** | trudnosc (b) | Wszystkie itemy rownie dobrze roznucuja |
 | **2PL** | dyskryminacja (a), trudnosc (b) | Itemy moga roznic sie moca roznucujaca |
 | **3PL** | dyskryminacja (a), trudnosc (b), zgadywanie (g) | Model uwzglednia mozliwosc odgadniecia poprawnej odpowiedzi |
@@ -741,16 +657,14 @@ prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby
 ### Parametry itemow (IRT)
 
 | Parametr | Symbol | Opis | Zakres typowy |
-|-----------------|-----------------|-----------------|---------------------|
+|------------------|------------------|------------------|--------------------|
 | Dyskryminacja | a | Jak stromo rysnie krzywa ICC | 0.5 - 2.5 (optymalnie) |
 | Trudnosc | b | Poziom theta, przy ktorym P = 0.50 | -3 do +3 |
 | Zgadywanie | g | Dolna asymptota ICC; prawdopodobienstwo poprawnej odpowiedzi przy bardzo niskiej theta | 0.00 - 0.35 |
 
 ### Porownanie modeli
 
-Porownanie 1PL vs 2PL wykonujemy testem ilorazu wiarogodnosci (LRT).
-Jesli 2PL jest istotnie lepszy (p \< 0.05), wybieramy 2PL. Dodatkwo
-porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
+Porownanie 1PL vs 2PL wykonujemy testem ilorazu wiarogodnosci (LRT). Jesli 2PL jest istotnie lepszy (p \< 0.05), wybieramy 2PL. Dodatkwo porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
 
 ```{r irt-analysis}
 # ============================================================================
@@ -1172,9 +1086,7 @@ if (has_versions) {
 
 ## Opis metody
 
-**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa
-dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem
-zachowuje sie nieprzewidywalnie.
+**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
 
 ### Statystyki dopasowania
 
@@ -1187,16 +1099,10 @@ zachowuje sie nieprzewidywalnie.
 
 ### Sposob interpretacji
 
-- **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa
-  parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model dobrze
-  opisuje dany item.
-- **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej
-  zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30
-  oznaczaja niedopasowanie.
-- **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach
-  theta. Bardziej podatny na wartosci odstajace.
-- **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1\*
-  przy malych probach.
+- **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model dobrze opisuje dany item.
+- **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30 oznaczaja niedopasowanie.
+- **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
+- **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1\* przy malych probach.
 
 ```{r item-fit}
 # ============================================================================
@@ -1403,23 +1309,16 @@ for (name in names(irt_results)) {
 
 ## Opis metody
 
-**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe
-dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs
-kontrolna).
+**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
 
-**Czym jest DIF?** Item wykazuje DIF, jesli osoby z roznych grup o tym
-samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej
-odpowiedzi. DIF oznacza, ze item jest "nieuczciwy" (biased) - faworyzuje
-jedna grupe.
+**Czym jest DIF?** Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest "nieuczciwy" (biased) - faworyzuje jedna grupe.
 
 ### Metoda: Regresja logistyczna
 
 Stosujemy podejscie regresji logistycznej (Swaminathan & Rogers, 1990):
 
-1.  **Uniform DIF:** Roznice stale na calym zakresie theta (rozna
-    trudnosc)
-2.  **Non-uniform DIF:** Roznice zmieniaja sie w zaleznosci od theta
-    (rozna dyskryminacja)
+1.  **Uniform DIF:** Roznice stale na calym zakresie theta (rozna trudnosc)
+2.  **Non-uniform DIF:** Roznice zmieniaja sie w zaleznosci od theta (rozna dyskryminacja)
 
 ### Klasyfikacja ETS
 
@@ -1431,14 +1330,9 @@ Stosujemy podejscie regresji logistycznej (Swaminathan & Rogers, 1990):
 
 ### Sposob interpretacji
 
-- **Kategoria A:** Item dziala jednakowo w obu grupach. Brak podstaw do
-  interwencji.
-- **Kategoria B:** Umiarkowane roznice. Nalezy zbadac tresc itemu pod
-  katem potencjalnych zrodel obciazenia. Jesli nie ma merytorycznych
-  podstaw, mozna zostawic.
-- **Kategoria C:** Duze roznice miedzy grupami. Item powinien zostac
-  zrewidowany lub usuniety, chyba ze roznica ma uzasadnienie
-  merytoryczne.
+- **Kategoria A:** Item dziala jednakowo w obu grupach. Brak podstaw do interwencji.
+- **Kategoria B:** Umiarkowane roznice. Nalezy zbadac tresc itemu pod katem potencjalnych zrodel obciazenia. Jesli nie ma merytorycznych podstaw, mozna zostawic.
+- **Kategoria C:** Duze roznice miedzy grupami. Item powinien zostac zrewidowany lub usuniety, chyba ze roznica ma uzasadnienie merytoryczne.
 
 ```{r dif-analysis}
 # ============================================================================
@@ -1977,5 +1871,4 @@ cat("\n")
 
 ------------------------------------------------------------------------
 
-*Raport wygenerowany automatycznie za pomoca szablonu
-`Psychometria_Uniwersalna.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
+*Raport wygenerowany automatycznie za pomoca szablonu `Psychometria_Uniwersalna.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
