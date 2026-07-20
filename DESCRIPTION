@@ -17,10 +17,10 @@ Imports:
   sirt,
   haven,
   readxl,
-  fs
+  fs,
+  rmarkdown
 Suggests:
-    testthat,
-    rmarkdown
+    testthat
 Config/testthat/edition: 3
 Depends: 
     R (>= 3.5)
