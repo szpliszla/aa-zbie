@@ -58,6 +58,7 @@ if (requireNamespace("aazbie", quietly = TRUE)) {
   library(aazbie)
 }
 
+
 if (!exists("read_psych_data", mode = "function")) {
   engine_candidates <- c(
     file.path("..", "R", "silnik_psychometria_wczytanie_walidacja.R"),
@@ -199,7 +200,7 @@ if (nrow(items_with_missing) > 0) {
 
 cat("\n**Braki danych per osoba:**\n\n")
 cat("- Sredni % brakow:", round(mean(missing_per_person), 1), "%\n")
-cat("- Mediana % brakow:", round(median(missing_per_person), 1), "%\n")
+cat("- Mediana % brakow:", round(stats::median(missing_per_person), 1), "%\n")
 cat("- Max % brakow:", round(max(missing_per_person), 1), "%\n")
 cat("- Osoby z >90% brakow:", sum(missing_per_person > 90), "\n\n")
 
@@ -471,24 +472,24 @@ run_ctt_for_items <- function(data_items, label = "Caly test") {
   }
 
   # Wykres trudnosc vs dyskryminacja
-  p <- ggplot(item_stats, aes(x = Trudnosc_p, y = r_cor)) +
-    geom_point(aes(color = Ocena), size = 3) +
-    geom_text(aes(label = Item), size = 2.5, vjust = -1, alpha = 0.7) +
-    geom_hline(yintercept = 0.30, linetype = "dashed", color = "green4", alpha = 0.5) +
-    geom_hline(yintercept = 0.20, linetype = "dashed", color = "orange", alpha = 0.5) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "red", alpha = 0.5) +
-    annotate("text", x = 0.95, y = 0.32, label = "r = 0.30 (dobry)",
+  p <- ggplot2::ggplot(item_stats, ggplot2::aes(x = Trudnosc_p, y = r_cor)) +
+    ggplot2::geom_point(ggplot2::aes(color = Ocena), size = 3) +
+    ggplot2::geom_text(ggplot2::aes(label = Item), size = 2.5, vjust = -1, alpha = 0.7) +
+    ggplot2::geom_hline(yintercept = 0.30, linetype = "dashed", color = "green4", alpha = 0.5) +
+    ggplot2::geom_hline(yintercept = 0.20, linetype = "dashed", color = "orange", alpha = 0.5) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", alpha = 0.5) +
+    ggplot2::annotate("text", x = 0.95, y = 0.32, label = "r = 0.30 (dobry)",
              size = 2.5, color = "green4", hjust = 1) +
-    annotate("text", x = 0.95, y = 0.22, label = "r = 0.20 (akceptowalny)",
+    ggplot2::annotate("text", x = 0.95, y = 0.22, label = "r = 0.20 (akceptowalny)",
              size = 2.5, color = "orange", hjust = 1) +
-    scale_x_continuous(limits = c(0, 1)) +
-    labs(
+    ggplot2::scale_x_continuous(limits = c(0, 1)) +
+    ggplot2::labs(
       title = paste("Mapa jakosci itemow CTT -", label),
       x = "Trudnosc (p)",
       y = "Korelacja item-test (r.cor)",
       color = "Ocena"
     ) +
-    theme_minimal()
+    ggplot2::theme_minimal()
 
   print(p)
   cat("\n\n")
@@ -736,9 +737,9 @@ run_irt_for_items <- function(data_items, label = "Caly test") {
   cat("#### Porownanie modeli 1PL vs 2PL vs 3PL\n\n")
 
 if (!is.null(model_3pl)) {
-  anova_result <- anova(model_1pl, model_2pl, model_3pl)
+  anova_result <- mirt::anova(model_1pl, model_2pl, model_3pl)
 } else {
-  anova_result <- anova(model_1pl, model_2pl)
+  anova_result <- mirt::anova(model_1pl, model_2pl)
 }
 
 comparison_df <- data.frame(
@@ -807,7 +808,7 @@ cat("#### Parametry itemow IRT\n\n")
 
 make_params_table <- function(model, model_name) {
 
-  item_params <- coef(model, simplify = TRUE, IRTpars = TRUE)$items
+  item_params <- mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items
 
   params_df <- data.frame(
     Item = rownames(item_params),
@@ -874,7 +875,7 @@ cat("##### Funkcja informacyjna testu (TIF)\n\n")
 cat("Funkcja informacyjna pokazuje, w jakim zakresie zdolnosci (theta) test\n")
 cat("dostarcza najwiecej informacji (= najdokladniejszy pomiar).\n\n")
 
-print(plot(
+print(mirt::plot(
   preferred_model,
   type = "info",
   facet_items = FALSE,
@@ -895,7 +896,7 @@ n_per_plot <- min(ncol(data_items), 12)
 for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
   end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
 
-  print(plot(
+  print(mirt::plot(
     preferred_model,
     type = "trace",
     which.items = start_idx:end_idx,
@@ -913,7 +914,7 @@ cat("Punkty przedstawiaja empiryczne prawdopodobienstwa poprawnej odpowiedzi\n")
 cat("w grupach osob o podobnym poziomie theta, a linia pokazuje przewidywania modelu IRT.\n")
 cat("Duze odchylenia punktow od krzywej moga wskazywac na niedopasowanie itemu.\n\n")
 
-breaks_theta <- unique(quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
+breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
 
 if (length(breaks_theta) < 3) {
 
@@ -938,7 +939,7 @@ if (length(breaks_theta) < 3) {
 
     end_idx <- min(start_idx + n_per_plot_emp - 1, ncol(data_items))
 
-    par(mfrow = c(2, 3))
+    graphics::par(mfrow = c(2, 3))
 
     for (i in start_idx:end_idx) {
 
@@ -948,7 +949,7 @@ if (length(breaks_theta) < 3) {
       tmp <- empirical_data
       tmp$response <- item_resp
 
-      emp <- aggregate(
+      emp <- stats::aggregate(
         cbind(theta, response) ~ group,
         data = tmp,
         FUN = mean,
@@ -960,7 +961,7 @@ if (length(breaks_theta) < 3) {
       item_obj <- mirt::extract.item(preferred_model, i)
       prob <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))[, 2]
 
-      plot(
+      graphics::plot(
         theta_grid,
         prob,
         type = "l",
@@ -971,7 +972,7 @@ if (length(breaks_theta) < 3) {
         main = item_name
       )
 
-      points(
+      graphics::points(
         emp$theta,
         emp$response,
         pch = 19,
@@ -979,7 +980,7 @@ if (length(breaks_theta) < 3) {
       )
     }
 
-    par(mfrow = c(1, 1))
+    graphics::par(mfrow = c(1, 1))
   }
 }
 
@@ -988,7 +989,7 @@ cat("\n\n")
 # Person ability distribution
 cat("##### Rozklad zdolnosci osob (theta)\n\n")
 
-hist(
+graphics::hist(
   theta_vals,
   breaks = 30,
   col = "steelblue",
@@ -998,13 +999,13 @@ hist(
   ylab = "Liczba osob"
 )
 
-abline(v = mean(theta_vals), col = "red", lwd = 2)
+graphics::abline(v = mean(theta_vals), col = "red", lwd = 2)
 
-legend(
+graphics::legend(
   "topright",
   legend = paste(
     "M =", round(mean(theta_vals), 2),
-    ", SD =", round(sd(theta_vals), 2)
+    ", SD =", round(stats::sd(theta_vals), 2)
   ),
   col = "red",
   lwd = 2
@@ -1256,20 +1257,20 @@ if (FALSE) {
       S_X2_p = sx2_result$p.S_X2
     )
 
-    p_fit <- ggplot(fit_plot_data, aes(x = Infit, y = Outfit)) +
-      geom_point(aes(color = S_X2_p < 0.05), size = 3) +
-      geom_text(aes(label = Item), size = 2, vjust = -1, alpha = 0.6) +
-      geom_hline(yintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-      geom_vline(xintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-      scale_color_manual(values = c("FALSE" = "steelblue", "TRUE" = "red"),
+    p_fit <- ggplot2::ggplot(fit_plot_data, ggplot2::aes(x = Infit, y = Outfit)) +
+      ggplot2::geom_point(ggplot2::aes(color = S_X2_p < 0.05), size = 3) +
+      ggplot2::geom_text(ggplot2::aes(label = Item), size = 2, vjust = -1, alpha = 0.6) +
+      ggplot2::geom_hline(yintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
+      ggplot2::geom_vline(xintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
+      ggplot2::scale_color_manual(values = c("FALSE" = "steelblue", "TRUE" = "red"),
                          labels = c("S-X2 OK", "S-X2 niedopasowanie"),
                          name = "Dopasowanie") +
-      labs(
+      ggplot2::labs(
         title = paste("Mapa dopasowania itemow -", label),
         x = "Infit MNSQ",
         y = "Outfit MNSQ"
       ) +
-      theme_minimal()
+      ggplot2::theme_minimal()
 
     print(p_fit)
     cat("\n\n")
@@ -1378,7 +1379,7 @@ if (is.null(dif_group_var) || !dif_group_var %in% names(raw_data)) {
 
       # Usun itemy z zerowawariancja w obu grupach
       good_items <- sapply(d_items, function(x) {
-        var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
+        stats::var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
       })
       d_items <- d_items[, good_items, drop = FALSE]
 
@@ -1457,21 +1458,21 @@ if (is.null(dif_group_var) || !dif_group_var %in% names(raw_data)) {
       if (nrow(dif_df) > 0) {
         dif_df$pdiff_for_plot <- dif_result$pdiff.adj
 
-        p_dif <- ggplot(dif_df, aes(x = reorder(Item, pdiff_for_plot),
+        p_dif <- ggplot2::ggplot(dif_df, ggplot2::aes(x = stats::reorder(Item, pdiff_for_plot),
                                      y = pdiff_for_plot, fill = ETS)) +
-          geom_col() +
-          geom_hline(yintercept = c(-1.5, -1, 1, 1.5),
+          ggplot2::geom_col() +
+          ggplot2::geom_hline(yintercept = c(-1.5, -1, 1, 1.5),
                      linetype = "dashed", color = c("red", "orange", "orange", "red"),
                      alpha = 0.5) +
-          scale_fill_manual(values = c("A" = "green4", "B" = "orange", "C" = "red")) +
-          coord_flip() +
-          labs(
+          ggplot2::scale_fill_manual(values = c("A" = "green4", "B" = "orange", "C" = "red")) +
+          ggplot2::coord_flip() +
+          ggplot2::labs(
             title = paste("DIF:", label),
             x = "Item",
             y = "Adjusted p-difference",
             fill = "Klasyfikacja ETS"
           ) +
-          theme_minimal()
+          ggplot2::theme_minimal()
 
         print(p_dif)
         cat("\n\n")
@@ -1718,7 +1719,7 @@ safe_sheet_name <- function(x) {
 }
 
 z_score <- function(x) {
-  if (all(is.na(x)) || sd(x, na.rm = TRUE) == 0) {
+  if (all(is.na(x)) || stats::sd(x, na.rm = TRUE) == 0) {
     return(rep(NA, length(x)))
   }
   as.numeric(scale(x))
