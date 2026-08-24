@@ -210,12 +210,18 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 
 #' @title Walidacja itemow testowych
 #'
-#' @description Sprawdza typ danych, binarnosc itemow oraz wariancje
+#' @description Sprawdza typ danych, klasyfikuje itemy jako binarne lub
+#' politomiczne i weryfikuje wariancje. Itemy z prawidlowym kodowaniem
+#' (kolejne liczby calkowite od 0 do max) sa zachowywane niezaleznie od
+#' liczby kategorii. Itemy z niecalkowitymi, ujemnymi lub niespojnymi
+#' wartosciami sa wykluczane.
 #'
 #' @param raw_data Ramka danych
 #' @param item_cols Wektor nazw kolumn z itemami
 
-#' @return Lista z informacjami o problemach walidacyjnych
+#' @return Lista z oczyszczonymi danymi itemowymi, diagnostykami walidacyjnymi
+#'   oraz klasyfikacja typu itemow (\code{item_type}, \code{item_max_scores},
+#'   \code{n_categories}).
 #'
 #' @details Funkcja jest czysta wzgledem srodowiska zewnetrznego: nie zapisuje
 #' plikow, nie wypisuje komunikatow i nie modyfikuje przekazanej ramki danych.
@@ -304,36 +310,108 @@ validate_items_data <- function(raw_data, item_cols) {
     )
   }
 
-  # Lukasz: dobre miejsce na "wpiecie sie" z danymi kategorycznymi.
+  # ------------------------------------------------------------------
+  # Klasyfikacja itemow: binarne vs politomiczne
+  # ------------------------------------------------------------------
+  # Itemy z wartosciami bedacymi kolejnymi liczbami calkowitymi (np.
+  # 0,1 lub 0,1,2,3) sa traktowane jako prawidlowe. Itemy zaczynajace
+  # sie od wartosci > 0 sa przeskalowywane (odjecie minimum). Itemy z
+  # niecalkowitymi, ujemnymi lub niespojnymi wartosciami sa wykluczane.
 
-  value_check <- vapply(items_data, function(x) {
-    vals <- unique(x[!is.na(x)])
-    all(vals %in% c(0, 1))
-  }, logical(1))
+  item_diagnostics <- lapply(names(items_data), function(col) {
+    vals <- sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
 
-  non_binary <- names(value_check[!value_check])
+    if (length(vals) == 0) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = 0L,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "brak_wartosci"
+      ))
+    }
+
+    is_integer <- all(vals == floor(vals))
+    if (!is_integer) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "niecalkowite"
+      ))
+    }
+
+    is_non_negative <- all(vals >= 0)
+    if (!is_non_negative) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "ujemne"
+      ))
+    }
+
+    min_val <- min(vals)
+    max_val <- max(vals)
+    expected_seq <- seq(min_val, max_val)
+    is_contiguous <- setequal(vals, expected_seq)
+
+    if (!is_contiguous) {
+      return(list(
+        name = col, vals = vals, min_val = min_val,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "luki_w_kategoriach"
+      ))
+    }
+
+    effective_max <- max_val - min_val
+
+    list(
+      name = col,
+      vals = vals,
+      min_val = min_val,
+      max_score = effective_max,
+      n_categories = as.integer(effective_max + 1L),
+      is_valid = TRUE,
+      is_binary = (effective_max == 1),
+      issue = NA_character_
+    )
+  })
+
+  names(item_diagnostics) <- names(items_data)
+
+  is_valid <- vapply(item_diagnostics, function(d) d$is_valid, logical(1))
+
+  invalid_items <- names(is_valid[!is_valid])
   non_binary_values <- list()
 
-  if (length(non_binary) > 0) {
+  if (length(invalid_items) > 0) {
 
     non_binary_values <- lapply(
-      non_binary,
-      function(col) {
-        sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
-      }
+      invalid_items,
+      function(col) item_diagnostics[[col]]$vals
     )
 
-    names(non_binary_values) <- non_binary
+    names(non_binary_values) <- invalid_items
 
-    item_cols <- setdiff(item_cols, non_binary)
+    invalid_reasons <- vapply(
+      invalid_items,
+      function(col) item_diagnostics[[col]]$issue,
+      character(1)
+    )
+
+    item_cols <- setdiff(item_cols, invalid_items)
     items_data <- items_data[, item_cols, drop = FALSE]
 
     validation_issues <- c(
       validation_issues,
       list(
         paste0(
-          "Wykluczono itemy niebinarne: ",
-          paste(non_binary, collapse = ", ")
+          "Wykluczono itemy z nieprawidlowymi wartosciami: ",
+          paste(
+            sprintf("%s (%s)", invalid_items, invalid_reasons),
+            collapse = ", "
+          )
         )
       )
     )
@@ -341,9 +419,54 @@ validate_items_data <- function(raw_data, item_cols) {
 
   if (length(item_cols) == 0) {
     stop(
-      "Po wykluczeniu itemow niebinarnych nie pozostaly zadne itemy do analizy.",
+      "Po walidacji wartosci nie pozostaly zadne itemy do analizy.",
       call. = FALSE
     )
+  }
+
+  # Przeskaluj itemy zaczynajace sie od wartosci > 0
+  recoded_items <- character(0)
+
+  for (col in item_cols) {
+    min_val <- item_diagnostics[[col]]$min_val
+    if (!is.na(min_val) && min_val > 0) {
+      items_data[[col]] <- items_data[[col]] - min_val
+      recoded_items <- c(recoded_items, col)
+    }
+  }
+
+  if (length(recoded_items) > 0) {
+    validation_warnings <- c(
+      validation_warnings,
+      list(paste0(
+        "Przeskalowano itemy (odjeto minimum, aby zakres zaczynal sie od 0): ",
+        paste(recoded_items, collapse = ", ")
+      ))
+    )
+  }
+
+  # Okresl typ itemow
+  valid_diag <- item_diagnostics[item_cols]
+
+  item_max_scores <- vapply(
+    valid_diag, function(d) as.integer(d$max_score), integer(1)
+  )
+  names(item_max_scores) <- item_cols
+
+  n_categories <- vapply(
+    valid_diag, function(d) d$n_categories, integer(1)
+  )
+  names(n_categories) <- item_cols
+
+  all_binary <- all(item_max_scores == 1L)
+  any_binary <- any(item_max_scores == 1L)
+
+  item_type <- if (all_binary) {
+    "binary"
+  } else if (!any_binary) {
+    "polytomous"
+  } else {
+    "mixed"
   }
 
   item_vars <- vapply(
@@ -380,11 +503,14 @@ validate_items_data <- function(raw_data, item_cols) {
   list(
     item_cols = item_cols,
     items_data = items_data,
+    item_type = item_type,
+    item_max_scores = item_max_scores,
+    n_categories = n_categories,
     validation_issues = validation_issues,
     validation_warnings = validation_warnings,
     non_numeric_items = non_numeric,
     conversion_diagnostics = conversion_diagnostics,
-    non_binary_items = non_binary,
+    non_binary_items = invalid_items,
     non_binary_values = non_binary_values,
     zero_variance_items = zero_var_items
   )
