@@ -173,6 +173,7 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 #' @param data_items Ramka danych lub macierz z odpowiedziami na itemy. Kolumny odpowiadaja itemom, a wiersze osobom.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu obiektow wykresow.
 #' @param correlation_threshold_negative Prog korelacji `r_cor`, ponizej ktorego itemy sa zwracane jako slabe w polu `weak_items`.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item. Gdy NULL, obliczany z danych. Uzywany do normalizacji trudnosci dla itemow politomicznych.
 #'
 #' @return Lista zawierajaca status, statystyki rzetelnosci, statystyki itemow, podsumowania, wykresy i oczyszczone dane itemowe.
 #'
@@ -186,7 +187,8 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 run_ctt_for_items <- function(
     data_items,
     label = "Caly test",
-    correlation_threshold_negative = 0
+    correlation_threshold_negative = 0,
+    item_max_scores = NULL
 ) {
 
   vars <- sapply(data_items, stats::var, na.rm = TRUE)
@@ -247,10 +249,21 @@ run_ctt_for_items <- function(
 
   reliability_df <- reliability_df[!is.na(reliability_df$Wartosc), , drop = FALSE]
 
+  # Oblicz maksymalne wyniki per item (dla normalizacji trudnosci)
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    item_max_scores <- item_max_scores[names(data_items)]
+  }
+  item_max_scores[item_max_scores == 0] <- 1L
+
+  item_means <- colMeans(data_items, na.rm = TRUE)
+
   item_stats <- data.frame(
     Item = rownames(alpha_result$item.stats),
     N = colSums(!is.na(data_items)),
-    Trudnosc_p = round(colMeans(data_items, na.rm = TRUE), 3),
+    Max_score = as.integer(item_max_scores),
+    Trudnosc_p = round(item_means / item_max_scores, 3),
     r_cor = round(alpha_result$item.stats$r.cor, 3),
     r_drop = round(alpha_result$item.stats$r.drop, 3),
     Alpha_bez_itemu = round(alpha_result$alpha.drop$raw_alpha, 3),
@@ -431,12 +444,37 @@ make_params_table <- function(model, model_name = NA_character_) {
   params_df <- data.frame(
     Item = rownames(item_params),
     Model = model_name,
-    a_dyskryminacja = if ("a" %in% colnames(item_params)) round(item_params[, "a"], 3) else NA_real_,
-    b_trudnosc = if ("b" %in% colnames(item_params)) round(item_params[, "b"], 3) else NA_real_,
-    g_zgadywanie = if ("g" %in% colnames(item_params)) round(item_params[, "g"], 3) else NA_real_,
     stringsAsFactors = FALSE
   )
 
+  # Dyskryminacja (a)
+  params_df$a_dyskryminacja <- if ("a" %in% colnames(item_params)) {
+    round(item_params[, "a"], 3)
+  } else {
+    NA_real_
+  }
+
+  # Trudnosc — pojedyncze b (modele binarne) lub wiele b1, b2, ... (politomiczne)
+  b_cols <- grep("^b\\d*$", colnames(item_params), value = TRUE)
+
+  if (length(b_cols) == 1 && b_cols == "b") {
+    params_df$b_trudnosc <- round(item_params[, "b"], 3)
+  } else if (length(b_cols) > 0) {
+    for (bc in b_cols) {
+      params_df[[bc]] <- round(item_params[, bc], 3)
+    }
+  } else {
+    params_df$b_trudnosc <- NA_real_
+  }
+
+  # Zgadywanie (g) — tylko modele binarne 3PL
+  params_df$g_zgadywanie <- if ("g" %in% colnames(item_params)) {
+    round(item_params[, "g"], 3)
+  } else {
+    NA_real_
+  }
+
+  # Ocena dyskryminacji
   params_df$Ocena_a <- ""
 
   has_a <- !is.na(params_df$a_dyskryminacja)
@@ -468,7 +506,9 @@ make_params_table <- function(model, model_name = NA_character_) {
 #' # make_irt_plots(model, data_items, theta_vals, "Caly test", "2PL")
 #'
 #' @export
-make_irt_plots <- function(preferred_model, data_items, theta_vals, label, preferred_name, show_empirical_icc = TRUE) {
+make_irt_plots <- function(preferred_model, data_items, theta_vals, label,
+                           preferred_name, show_empirical_icc = TRUE,
+                           item_type = "binary", item_max_scores = NULL) {
   plots <- list()
 
   plots$test_information <- mirt::plot(
@@ -478,6 +518,7 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
     main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
   )
 
+  trace_label <- if (item_type == "binary") "ICC" else "Krzywe kategorii"
   n_per_plot <- min(ncol(data_items), 12)
   trace_plots <- list()
 
@@ -489,7 +530,7 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
       preferred_model,
       type = "trace",
       which.items = start_idx:end_idx,
-      main = paste("ICC -", label, "-", preferred_name, "- itemy", start_idx, "do", end_idx),
+      main = paste(trace_label, "-", label, "-", preferred_name, "- itemy", start_idx, "do", end_idx),
       facet_items = TRUE,
       auto.key = list(points = FALSE, lines = TRUE)
     )
@@ -503,7 +544,8 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
       data_items,
       theta_vals,
       label,
-      preferred_name
+      preferred_name,
+      item_max_scores = item_max_scores
     )
   }
 
@@ -539,11 +581,17 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
 #' # make_empirical_icc_plot(model, data_items, theta_vals)
 #'
 #' @export
-make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly test", model_name = "IRT") {
+make_empirical_icc_plot <- function(model, data_items, theta_vals,
+                                    label = "Caly test", model_name = "IRT",
+                                    item_max_scores = NULL) {
   breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
 
   if (length(breaks_theta) < 3) {
     return(NULL)
+  }
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
   }
 
   theta_groups <- cut(theta_vals, breaks = breaks_theta, include.lowest = TRUE)
@@ -554,11 +602,15 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
 
   for (i in seq_len(ncol(data_items))) {
     item_name <- colnames(data_items)[i]
+    max_sc <- item_max_scores[item_name]
+    if (is.na(max_sc) || max_sc == 0) max_sc <- 1
+
+    # Empiryczne srednie znormalizowane do 0-1
     tmp <- data.frame(
       item = item_name,
       theta = theta_vals,
       group = theta_groups,
-      response = data_items[, i]
+      response = data_items[, i] / max_sc
     )
 
     emp <- stats::aggregate(
@@ -568,13 +620,16 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
       na.rm = TRUE
     )
 
+    # Oczekiwany wynik z modelu znormalizowany do 0-1
     item_obj <- mirt::extract.item(model, i)
-    prob <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))[, 2]
+    probs <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))
+    categories <- seq(0, ncol(probs) - 1)
+    expected <- as.vector(probs %*% categories) / max_sc
 
     pred <- data.frame(
       item = item_name,
       theta = theta_grid,
-      probability = prob,
+      probability = expected,
       stringsAsFactors = FALSE
     )
 
@@ -584,6 +639,8 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
 
   empirical_df <- do.call(rbind, empirical_list)
   predicted_df <- do.call(rbind, predicted_list)
+
+  y_label <- if (all(item_max_scores <= 1)) "P(poprawnej)" else "Oczekiwany wynik (0-1)"
 
   ggplot2::ggplot() +
     ggplot2::geom_line(
@@ -599,9 +656,9 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
     ggplot2::facet_wrap(ggplot2::vars(.data$item)) +
     ggplot2::coord_cartesian(ylim = c(0, 1)) +
     ggplot2::labs(
-      title = paste("Empiryczne dopasowanie ICC -", label, "-", model_name),
+      title = paste("Empiryczne dopasowanie -", label, "-", model_name),
       x = "Theta",
-      y = "P(poprawnej)"
+      y = y_label
     ) +
     ggplot2::theme_minimal()
 }
@@ -611,12 +668,17 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
 
 #' @title Analiza IRT dla zestawu itemow
 #'
-#' @description Dopasowuje modele IRT 1PL, 2PL oraz opcjonalnie 3PL, porownuje ich dopasowanie, wybiera model preferowany na podstawie testow LRT i zwraca parametry itemow, wyniki theta oraz obiekty wykresow.
+#' @description Dopasowuje modele IRT odpowiednie dla typu danych: 1PL/2PL/3PL
+#' dla itemow binarnych, RSM/GPCM/GRM dla itemow politomicznych. Porownuje
+#' dopasowanie modeli, wybiera model preferowany na podstawie testow LRT i
+#' zwraca parametry itemow, wyniki theta oraz obiekty wykresow.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami na itemy.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu wykresow.
 #' @param show_plots Wartosc logiczna okreslajaca, czy przygotowac obiekty wykresow IRT.
 #' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.
+#' @param item_type Typ itemow: \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}. Dla \code{"binary"} dopasowuje 1PL/2PL/3PL, dla \code{"polytomous"} i \code{"mixed"} dopasowuje RSM/GPCM/GRM.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #'
 #' @return Lista zawierajaca status, modele IRT, porownania modeli, parametry itemow, wyniki theta, wykresy i dane uzyte w analizie.
 #'
@@ -628,7 +690,9 @@ run_irt_for_items <- function(
     data_items,
     label = "Caly test",
     show_plots = TRUE,
-    show_empirical_icc = TRUE
+    show_empirical_icc = TRUE,
+    item_type = "binary",
+    item_max_scores = NULL
 ) {
 
   vars <- sapply(data_items, stats::var, na.rm = TRUE)
@@ -645,45 +709,187 @@ run_irt_for_items <- function(
     ))
   }
 
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  }
+
   n_items <- ncol(data_items)
   model_spec <- paste0("F = 1-", n_items)
 
-  model_1pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "1PL", verbose = FALSE),
-    error = function(e) e
-  )
+  # ---------------------------------------------------------------
+  # Sciezka binarna: 1PL / 2PL / 3PL
+  # ---------------------------------------------------------------
+  if (item_type == "binary") {
 
-  if (inherits(model_1pl, "error")) {
+    model_1pl <- tryCatch(
+      mirt::mirt(data_items, model = model_spec, itemtype = "1PL", verbose = FALSE),
+      error = function(e) e
+    )
+
+    if (inherits(model_1pl, "error")) {
+      return(list(
+        status = make_status(FALSE, "model_1pl_error", conditionMessage(model_1pl)),
+        label = label,
+        data_items = data_items
+      ))
+    }
+
+    model_2pl <- tryCatch(
+      mirt::mirt(data_items, model = model_spec, itemtype = "2PL", verbose = FALSE),
+      error = function(e) e
+    )
+
+    if (inherits(model_2pl, "error")) {
+      return(list(
+        status = make_status(FALSE, "model_2pl_error", conditionMessage(model_2pl)),
+        label = label,
+        model_1pl = model_1pl,
+        data_items = data_items
+      ))
+    }
+
+    model_3pl <- tryCatch(
+      mirt::mirt(data_items, model = model_spec, itemtype = "3PL", verbose = FALSE),
+      error = function(e) NULL
+    )
+
+    if (!is.null(model_3pl)) {
+      anova_result <- mirt::anova(model_1pl, model_2pl, model_3pl)
+    } else {
+      anova_result <- mirt::anova(model_1pl, model_2pl)
+    }
+
+    comparison_df <- data.frame(
+      Model = rownames(anova_result),
+      AIC = round(anova_result$AIC, 1),
+      BIC = round(anova_result$BIC, 1),
+      LogLik = round(anova_result$logLik, 1),
+      df = anova_result$df,
+      stringsAsFactors = FALSE
+    )
+
+    lrt_labels <- c("1PL vs 2PL", "2PL vs 3PL")[seq_len(nrow(anova_result) - 1)]
+
+    lrt_df <- data.frame(
+      Porownanie = lrt_labels,
+      Chi2 = round(anova_result$X2[-1], 2),
+      df = anova_result$df[-1] - anova_result$df[-nrow(anova_result)],
+      p = round(anova_result$p[-1], 4),
+      stringsAsFactors = FALSE
+    )
+
+    preferred_model <- model_1pl
+    preferred_name <- "1PL"
+
+    p_val_2pl <- lrt_df$p[1]
+
+    if (!is.na(p_val_2pl) && p_val_2pl < 0.05) {
+      preferred_model <- model_2pl
+      preferred_name <- "2PL"
+
+      if (!is.null(model_3pl) && nrow(lrt_df) >= 2) {
+        p_val_3pl <- lrt_df$p[2]
+
+        if (!is.na(p_val_3pl) && p_val_3pl < 0.05) {
+          preferred_model <- model_3pl
+          preferred_name <- "3PL"
+        }
+      }
+    }
+
+    params_1pl_df <- make_params_table(model_1pl, "1PL")
+    params_2pl_df <- make_params_table(model_2pl, "2PL")
+    params_3pl_df <- if (!is.null(model_3pl)) make_params_table(model_3pl, "3PL") else NULL
+
+    theta_scores <- mirt::fscores(preferred_model, method = "EAP")
+    theta_vals <- theta_scores[, 1]
+
+    plots <- if (show_plots) {
+      make_irt_plots(preferred_model, data_items, theta_vals, label,
+                     preferred_name, show_empirical_icc,
+                     item_type = "binary", item_max_scores = item_max_scores)
+    } else {
+      list()
+    }
+
     return(list(
-      status = make_status(FALSE, "model_1pl_error", conditionMessage(model_1pl)),
+      status = make_status(TRUE, "ok", NA_character_),
       label = label,
-      data_items = data_items
-    ))
-  }
-
-  model_2pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "2PL", verbose = FALSE),
-    error = function(e) e
-  )
-
-  if (inherits(model_2pl, "error")) {
-    return(list(
-      status = make_status(FALSE, "model_2pl_error", conditionMessage(model_2pl)),
-      label = label,
+      item_type = "binary",
+      n_persons = nrow(data_items),
+      n_items = n_items,
+      model_spec = model_spec,
       model_1pl = model_1pl,
+      model_2pl = model_2pl,
+      model_3pl = model_3pl,
+      preferred_model = preferred_model,
+      preferred_name = preferred_name,
+      comparison_df = comparison_df,
+      params_1pl_df = params_1pl_df,
+      params_2pl_df = params_2pl_df,
+      params_3pl_df = params_3pl_df,
+      theta_scores = theta_scores,
+      anova = anova_result,
+      lrt = lrt_df,
+      plots = plots,
       data_items = data_items
     ))
   }
 
-  model_3pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "3PL", verbose = FALSE),
-    error = function(e) NULL
+  # ---------------------------------------------------------------
+  # Sciezka politomiczna / mieszana: RSM / GPCM / GRM
+  # ---------------------------------------------------------------
+
+  # Dla danych mieszanych GRM traktuje itemy binarne jako 2-kategoryjne
+  model_rsm <- tryCatch(
+    mirt::mirt(data_items, model = model_spec, itemtype = "rsm", verbose = FALSE),
+    error = function(e) e
   )
 
-  if (!is.null(model_3pl)) {
-    anova_result <- stats::anova(model_1pl, model_2pl, model_3pl)
+  if (inherits(model_rsm, "error")) {
+    # RSM moze nie zbiec sie np. przy mieszanych danych — kontynuuj bez niego
+    model_rsm <- NULL
+  }
+
+  model_gpcm <- tryCatch(
+    mirt::mirt(data_items, model = model_spec, itemtype = "gpcm", verbose = FALSE),
+    error = function(e) e
+  )
+
+  if (inherits(model_gpcm, "error")) {
+    return(list(
+      status = make_status(FALSE, "model_gpcm_error", conditionMessage(model_gpcm)),
+      label = label,
+      item_type = item_type,
+      model_rsm = model_rsm,
+      data_items = data_items
+    ))
+  }
+
+  model_grm <- tryCatch(
+    mirt::mirt(data_items, model = model_spec, itemtype = "graded", verbose = FALSE),
+    error = function(e) e
+  )
+
+  if (inherits(model_grm, "error")) {
+    return(list(
+      status = make_status(FALSE, "model_grm_error", conditionMessage(model_grm)),
+      label = label,
+      item_type = item_type,
+      model_rsm = model_rsm,
+      model_gpcm = model_gpcm,
+      data_items = data_items
+    ))
+  }
+
+  # Porownanie modeli
+  if (!is.null(model_rsm)) {
+    anova_result <- tryCatch(
+      mirt::anova(model_rsm, model_gpcm, model_grm),
+      error = function(e) mirt::anova(model_gpcm, model_grm)
+    )
   } else {
-    anova_result <- stats::anova(model_1pl, model_2pl)
+    anova_result <- mirt::anova(model_gpcm, model_grm)
   }
 
   comparison_df <- data.frame(
@@ -695,44 +901,74 @@ run_irt_for_items <- function(
     stringsAsFactors = FALSE
   )
 
-  lrt_labels <- c("1PL vs 2PL", "2PL vs 3PL")[seq_len(nrow(anova_result) - 1)]
+  n_models <- nrow(anova_result)
 
-  lrt_df <- data.frame(
-    Porownanie = lrt_labels,
-    Chi2 = round(anova_result$X2[-1], 2),
-    df = anova_result$df[-1] - anova_result$df[-nrow(anova_result)],
-    p = round(anova_result$p[-1], 4),
-    stringsAsFactors = FALSE
-  )
+  if (n_models >= 2) {
+    lrt_labels <- if (!is.null(model_rsm) && n_models == 3) {
+      c("RSM vs GPCM", "GPCM vs GRM")
+    } else {
+      "GPCM vs GRM"
+    }
 
-  preferred_model <- model_1pl
-  preferred_name <- "1PL"
+    lrt_df <- data.frame(
+      Porownanie = lrt_labels,
+      Chi2 = round(anova_result$X2[-1], 2),
+      df = anova_result$df[-1] - anova_result$df[-n_models],
+      p = round(anova_result$p[-1], 4),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    lrt_df <- data.frame(
+      Porownanie = character(0), Chi2 = numeric(0),
+      df = numeric(0), p = numeric(0), stringsAsFactors = FALSE
+    )
+  }
 
-  p_val_2pl <- lrt_df$p[1]
+  # Wybor modelu preferowanego
+  if (!is.null(model_rsm)) {
+    preferred_model <- model_rsm
+    preferred_name <- "RSM"
+  } else {
+    preferred_model <- model_gpcm
+    preferred_name <- "GPCM"
+  }
 
-  if (!is.na(p_val_2pl) && p_val_2pl < 0.05) {
-    preferred_model <- model_2pl
-    preferred_name <- "2PL"
-
-    if (!is.null(model_3pl) && nrow(lrt_df) >= 2) {
-      p_val_3pl <- lrt_df$p[2]
-
-      if (!is.na(p_val_3pl) && p_val_3pl < 0.05) {
-        preferred_model <- model_3pl
-        preferred_name <- "3PL"
+  if (nrow(lrt_df) >= 1) {
+    # Pierwszy test: RSM vs GPCM (lub jedyny test: GPCM vs GRM)
+    if (!is.null(model_rsm) && n_models == 3) {
+      p_val_gpcm <- lrt_df$p[1]
+      if (!is.na(p_val_gpcm) && p_val_gpcm < 0.05) {
+        preferred_model <- model_gpcm
+        preferred_name <- "GPCM"
+      }
+      if (nrow(lrt_df) >= 2) {
+        p_val_grm <- lrt_df$p[2]
+        if (!is.na(p_val_grm) && p_val_grm < 0.05) {
+          preferred_model <- model_grm
+          preferred_name <- "GRM"
+        }
+      }
+    } else {
+      p_val_grm <- lrt_df$p[1]
+      if (!is.na(p_val_grm) && p_val_grm < 0.05) {
+        preferred_model <- model_grm
+        preferred_name <- "GRM"
       }
     }
   }
 
-  params_1pl_df <- make_params_table(model_1pl, "1PL")
-  params_2pl_df <- make_params_table(model_2pl, "2PL")
-  params_3pl_df <- if (!is.null(model_3pl)) make_params_table(model_3pl, "3PL") else NULL
+  # Tabele parametrow
+  params_rsm_df <- if (!is.null(model_rsm)) make_params_table(model_rsm, "RSM") else NULL
+  params_gpcm_df <- make_params_table(model_gpcm, "GPCM")
+  params_grm_df <- make_params_table(model_grm, "GRM")
 
   theta_scores <- mirt::fscores(preferred_model, method = "EAP")
   theta_vals <- theta_scores[, 1]
 
   plots <- if (show_plots) {
-    make_irt_plots(preferred_model, data_items, theta_vals, label, preferred_name, show_empirical_icc)
+    make_irt_plots(preferred_model, data_items, theta_vals, label,
+                   preferred_name, show_empirical_icc,
+                   item_type = item_type, item_max_scores = item_max_scores)
   } else {
     list()
   }
@@ -740,18 +976,20 @@ run_irt_for_items <- function(
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
+    item_type = item_type,
     n_persons = nrow(data_items),
-    n_items = ncol(data_items),
+    n_items = n_items,
     model_spec = model_spec,
-    model_1pl = model_1pl,
-    model_2pl = model_2pl,
-    model_3pl = model_3pl,
+    model_rsm = model_rsm,
+    model_gpcm = model_gpcm,
+    model_grm = model_grm,
     preferred_model = preferred_model,
     preferred_name = preferred_name,
     comparison_df = comparison_df,
-    params_1pl_df = params_1pl_df,
-    params_2pl_df = params_2pl_df,
-    params_3pl_df = params_3pl_df,
+    # Aliasy dla kompatybilnosci z raportem
+    params_1pl_df = params_rsm_df,
+    params_2pl_df = params_gpcm_df,
+    params_3pl_df = params_grm_df,
     theta_scores = theta_scores,
     anova = anova_result,
     lrt = lrt_df,
