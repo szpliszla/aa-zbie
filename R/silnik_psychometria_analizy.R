@@ -587,14 +587,20 @@ make_params_table <- function(model, model_name = NA_character_) {
 
 #' @title Przygotowanie wykresow dla wybranego modelu IRT
 #'
-#' @description Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca funkcje informacyjna testu, krzywe charakterystyczne itemow, opcjonalne dopasowanie empiryczne ICC oraz histogram theta.
+#' @description
+#' Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca
+#' funkcje informacyjna testu, krzywe odpowiedzi itemow, opcjonalne
+#' empiryczne dopasowanie oraz histogram theta. Funkcja obsluguje itemy
+#' binarne, politomiczne i mieszane.
 #'
 #' @param preferred_model Dopasowany model IRT wybrany do interpretacji.
 #' @param data_items Ramka danych lub macierz itemow uzytych w modelu.
 #' @param theta_vals Wektor liczbowy z oszacowaniami theta.
 #' @param label Etykieta analizy uzywana w tytulach wykresow.
 #' @param preferred_name Nazwa wybranego modelu IRT.
-#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.
+#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania.
+#' @param item_type Typ itemow: \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #'
 #' @return Lista obiektow wykresow.
 #'
@@ -602,74 +608,144 @@ make_params_table <- function(model, model_name = NA_character_) {
 #' # make_irt_plots(model, data_items, theta_vals, "Caly test", "2PL")
 #'
 #' @export
-make_irt_plots <- function(preferred_model, data_items, theta_vals, label,
-                           preferred_name, show_empirical_icc = TRUE,
-                           item_type = "binary", item_max_scores = NULL) {
-  plots <- list()
-
-  plots$test_information <- mirt::plot(
+make_irt_plots <- function(
     preferred_model,
-    type = "info",
-    facet_items = FALSE,
-    main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
+    data_items,
+    theta_vals,
+    label,
+    preferred_name,
+    show_empirical_icc = TRUE,
+    item_type = "binary",
+    item_max_scores = NULL
+) {
+
+  plots <- list()
+  plot_status <- list()
+
+  plots$test_information <- tryCatch(
+    mirt::plot(
+      preferred_model,
+      type = "info",
+      facet_items = FALSE,
+      main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
+    ),
+    error = function(e) {
+      plot_status$test_information <<- conditionMessage(e)
+      NULL
+    }
   )
 
-  trace_label <- if (item_type == "binary") "ICC" else "Krzywe kategorii"
+  trace_label <- if (item_type == "binary") {
+    "ICC"
+  } else {
+    "Krzywe kategorii punktowych"
+  }
+
   n_per_plot <- min(ncol(data_items), 12)
   trace_plots <- list()
 
-  for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
-    end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
-    plot_name <- paste0("items_", start_idx, "_", end_idx)
+  if (ncol(data_items) > 0) {
+    for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
 
-    trace_plots[[plot_name]] <- mirt::plot(
-      preferred_model,
-      type = "trace",
-      which.items = start_idx:end_idx,
-      main = paste(trace_label, "-", label, "-", preferred_name, "- itemy", start_idx, "do", end_idx),
-      facet_items = TRUE,
-      auto.key = list(points = FALSE, lines = TRUE)
-    )
+      end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
+      plot_name <- paste0("items_", start_idx, "_", end_idx)
+
+      trace_plots[[plot_name]] <- tryCatch(
+        mirt::plot(
+          preferred_model,
+          type = "trace",
+          which.items = start_idx:end_idx,
+          main = paste(
+            trace_label,
+            "-",
+            label,
+            "-",
+            preferred_name,
+            "- itemy",
+            start_idx,
+            "do",
+            end_idx
+          ),
+          facet_items = TRUE,
+          auto.key = list(points = FALSE, lines = TRUE)
+        ),
+        error = function(e) {
+          plot_status[[paste0("trace_", plot_name)]] <<- conditionMessage(e)
+          NULL
+        }
+      )
+    }
   }
 
   plots$item_traces <- trace_plots
 
   if (show_empirical_icc) {
-    plots$empirical_icc <- make_empirical_icc_plot(
-      preferred_model,
-      data_items,
-      theta_vals,
-      label,
-      preferred_name,
-      item_max_scores = item_max_scores
+    plots$empirical_icc <- tryCatch(
+      make_empirical_icc_plot(
+        model = preferred_model,
+        data_items = data_items,
+        theta_vals = theta_vals,
+        label = label,
+        model_name = preferred_name,
+        item_max_scores = item_max_scores
+      ),
+      error = function(e) {
+        plot_status$empirical_icc <<- conditionMessage(e)
+        NULL
+      }
     )
   }
 
   theta_df <- data.frame(theta = theta_vals)
-  plots$theta_histogram <- ggplot2::ggplot(theta_df, ggplot2::aes(x = .data$theta)) +
-    ggplot2::geom_histogram(bins = 30, color = "white") +
-    ggplot2::geom_vline(xintercept = mean(theta_vals, na.rm = TRUE), linewidth = 1) +
-    ggplot2::labs(
-      title = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
-      x = "Zdolnosc (theta)",
-      y = "Liczba osob"
-    ) +
-    ggplot2::theme_minimal()
+  theta_df <- theta_df[is.finite(theta_df$theta), , drop = FALSE]
 
-  return(plots)
+  plots$theta_histogram <- if (nrow(theta_df) > 0) {
+    ggplot2::ggplot(theta_df, ggplot2::aes(x = .data$theta)) +
+      ggplot2::geom_histogram(bins = 30, color = "white") +
+      ggplot2::geom_vline(
+        xintercept = mean(theta_df$theta, na.rm = TRUE),
+        linewidth = 1
+      ) +
+      ggplot2::labs(
+        title = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
+        x = "Zdolnosc (theta)",
+        y = "Liczba osob"
+      ) +
+      ggplot2::theme_minimal()
+  } else {
+    plot_status$theta_histogram <- "Brak skonczonych wartosci theta."
+    NULL
+  }
+
+  if (length(plot_status) > 0) {
+    plots$plot_status <- data.frame(
+      plot = names(plot_status),
+      message = unlist(plot_status),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  plots
 }
 
-#' @title Przygotowanie wykresu empirycznego dopasowania ICC
+
+#' @title Przygotowanie wykresu empirycznego dopasowania IRT
 #'
-#' @description Porownuje przewidywane krzywe charakterystyczne itemow z empirycznymi srednimi odpowiedziami w grupach theta i zwraca jeden obiekt ggplot z panelami dla itemow.
+#' @description
+#' Porownuje przewidywany przez model wynik itemu z empirycznymi srednimi
+#' odpowiedziami w grupach theta. Dla itemow binarnych odpowiada to
+#' prawdopodobienstwu poprawnej odpowiedzi. Dla itemow politomicznych
+#' wynik jest normalizowany do zakresu 0-1, czyli interpretowany jako
+#' oczekiwany odsetek mozliwych punktow za item.
 #'
 #' @param model Dopasowany model IRT z pakietu `mirt`.
 #' @param data_items Ramka danych lub macierz odpowiedzi itemowych.
 #' @param theta_vals Wektor liczbowy z oszacowaniami theta dla osob.
 #' @param label Etykieta analizy uzywana w tytule wykresu.
 #' @param model_name Nazwa modelu IRT uzywana w tytule wykresu.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #'
-#' @return Obiekt klasy `ggplot` albo `NULL`, gdy nie da sie utworzyc grup theta.
+#' @return Obiekt klasy `ggplot` albo `NULL`, gdy nie da sie utworzyc wykresu.
 #'
 #' @importFrom rlang .data
 #'
@@ -677,10 +753,32 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label,
 #' # make_empirical_icc_plot(model, data_items, theta_vals)
 #'
 #' @export
-make_empirical_icc_plot <- function(model, data_items, theta_vals,
-                                    label = "Caly test", model_name = "IRT",
-                                    item_max_scores = NULL) {
-  breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
+make_empirical_icc_plot <- function(
+    model,
+    data_items,
+    theta_vals,
+    label = "Caly test",
+    model_name = "IRT",
+    item_max_scores = NULL
+) {
+
+  data_items <- as.data.frame(data_items)
+
+  if (nrow(data_items) != length(theta_vals)) {
+    return(NULL)
+  }
+
+  finite_theta <- is.finite(theta_vals)
+
+  if (sum(finite_theta) < 10) {
+    return(NULL)
+  }
+
+  breaks_theta <- unique(stats::quantile(
+    theta_vals[finite_theta],
+    probs = seq(0, 1, 0.1),
+    na.rm = TRUE
+  ))
 
   if (length(breaks_theta) < 3) {
     return(NULL)
@@ -688,26 +786,66 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals,
 
   if (is.null(item_max_scores)) {
     item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    missing_scores <- setdiff(names(data_items), names(item_max_scores))
+
+    if (length(missing_scores) > 0) {
+      item_max_scores <- c(
+        item_max_scores,
+        sapply(data_items[, missing_scores, drop = FALSE], max, na.rm = TRUE)
+      )
+    }
+
+    item_max_scores <- item_max_scores[names(data_items)]
   }
 
-  theta_groups <- cut(theta_vals, breaks = breaks_theta, include.lowest = TRUE)
+  item_max_scores <- as.numeric(item_max_scores)
+  names(item_max_scores) <- names(data_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
+
+  theta_groups <- cut(
+    theta_vals,
+    breaks = breaks_theta,
+    include.lowest = TRUE
+  )
+
+  theta_grid <- seq(
+    min(theta_vals[finite_theta], na.rm = TRUE),
+    max(theta_vals[finite_theta], na.rm = TRUE),
+    length.out = 200
+  )
 
   empirical_list <- list()
   predicted_list <- list()
-  theta_grid <- seq(min(theta_vals, na.rm = TRUE), max(theta_vals, na.rm = TRUE), length.out = 200)
 
   for (i in seq_len(ncol(data_items))) {
+
     item_name <- colnames(data_items)[i]
     max_sc <- item_max_scores[item_name]
-    if (is.na(max_sc) || max_sc == 0) max_sc <- 1
 
-    # Empiryczne srednie znormalizowane do 0-1
+    if (is.na(max_sc) || !is.finite(max_sc) || max_sc <= 0) {
+      max_sc <- 1
+    }
+
     tmp <- data.frame(
       item = item_name,
       theta = theta_vals,
       group = theta_groups,
-      response = data_items[, i] / max_sc
+      response = data_items[[i]] / max_sc,
+      stringsAsFactors = FALSE
     )
+
+    tmp <- tmp[
+      is.finite(tmp$theta) &
+        !is.na(tmp$group) &
+        !is.na(tmp$response),
+      ,
+      drop = FALSE
+    ]
+
+    if (nrow(tmp) == 0) {
+      next
+    }
 
     emp <- stats::aggregate(
       x = list(theta = tmp$theta, response = tmp$response),
@@ -716,9 +854,24 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals,
       na.rm = TRUE
     )
 
-    # Oczekiwany wynik z modelu znormalizowany do 0-1
-    item_obj <- mirt::extract.item(model, i)
-    probs <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))
+    item_obj <- tryCatch(
+      mirt::extract.item(model, i),
+      error = function(e) NULL
+    )
+
+    if (is.null(item_obj)) {
+      next
+    }
+
+    probs <- tryCatch(
+      mirt::probtrace(item_obj, Theta = matrix(theta_grid)),
+      error = function(e) NULL
+    )
+
+    if (is.null(probs) || ncol(probs) < 2) {
+      next
+    }
+
     categories <- seq(0, ncol(probs) - 1)
     expected <- as.vector(probs %*% categories) / max_sc
 
@@ -733,10 +886,18 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals,
     predicted_list[[item_name]] <- pred
   }
 
+  if (length(empirical_list) == 0 || length(predicted_list) == 0) {
+    return(NULL)
+  }
+
   empirical_df <- do.call(rbind, empirical_list)
   predicted_df <- do.call(rbind, predicted_list)
 
-  y_label <- if (all(item_max_scores <= 1)) "P(poprawnej)" else "Oczekiwany wynik (0-1)"
+  y_label <- if (all(item_max_scores <= 1)) {
+    "P(poprawnej)"
+  } else {
+    "Oczekiwany wynik itemu (0-1)"
+  }
 
   ggplot2::ggplot() +
     ggplot2::geom_line(
