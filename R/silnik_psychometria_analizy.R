@@ -425,10 +425,15 @@ sequential_elimination <- function(
 
 #' @title Przygotowanie tabeli parametrow IRT
 #'
-#' @description Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je w ramce danych zawierajacej dyskryminacje, trudnosc, zgadywanie oraz interpretacje dyskryminacji.
+#' @description
+#' Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je
+#' w ramce danych. Funkcja obsluguje modele binarne oraz modele
+#' partial-credit dla itemow punktowanych politomicznie. Dla modeli
+#' politomicznych zwraca wiele progow/trudnosci, np. b1, b2, b3.
 #'
 #' @param model Dopasowany model IRT z pakietu `mirt`.
-#' @param model_name Nazwa modelu zapisywana w tabeli, np. `"1PL"`, `"2PL"` lub `"3PL"`.
+#' @param model_name Nazwa modelu zapisywana w tabeli, np. `"1PL"`, `"2PL"`,
+#'   `"3PL"`, `"Rasch_PCM"` lub `"2PL_GPCM"`.
 #'
 #' @return Ramka danych z parametrami itemow IRT.
 #'
@@ -439,7 +444,30 @@ sequential_elimination <- function(
 #' @export
 make_params_table <- function(model, model_name = NA_character_) {
 
-  item_params <- mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items
+  empty_params <- data.frame(
+    Item = character(0),
+    Model = character(0),
+    a_dyskryminacja = numeric(0),
+    b_trudnosc = numeric(0),
+    g_zgadywanie = numeric(0),
+    Ocena_a = character(0),
+    stringsAsFactors = FALSE
+  )
+
+  if (is.null(model)) {
+    return(empty_params)
+  }
+
+  item_params <- tryCatch(
+    mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items,
+    error = function(e) NULL
+  )
+
+  if (is.null(item_params)) {
+    return(empty_params)
+  }
+
+  item_params <- as.data.frame(item_params)
 
   params_df <- data.frame(
     Item = rownames(item_params),
@@ -447,46 +475,114 @@ make_params_table <- function(model, model_name = NA_character_) {
     stringsAsFactors = FALSE
   )
 
-  # Dyskryminacja (a)
-  params_df$a_dyskryminacja <- if ("a" %in% colnames(item_params)) {
-    round(item_params[, "a"], 3)
-  } else {
-    NA_real_
+  extract_numeric <- function(col_name) {
+    if (
+      length(col_name) == 0 ||
+        is.na(col_name) ||
+        !col_name %in% names(item_params)
+    ) {
+      return(rep(NA_real_, nrow(item_params)))
+    }
+
+    suppressWarnings(as.numeric(item_params[[col_name]]))
   }
 
-  # Trudnosc — pojedyncze b (modele binarne) lub wiele b1, b2, ... (politomiczne)
-  b_cols <- grep("^b\\d*$", colnames(item_params), value = TRUE)
+  order_parameter_columns <- function(cols, prefix) {
+    if (length(cols) == 0) {
+      return(cols)
+    }
+
+    suffix <- sub(paste0("^", prefix), "", cols)
+    suffix[suffix == ""] <- "0"
+    cols[order(suppressWarnings(as.integer(suffix)))]
+  }
+
+  # Dyskryminacja: w zaleznosci od modelu mirt moze zwrocic "a" albo "a1".
+  a_cols <- c(
+    intersect("a", names(item_params)),
+    intersect("a1", names(item_params)),
+    grep("^a[0-9]+$", names(item_params), value = TRUE)
+  )
+
+  a_col <- if (length(a_cols) > 0) a_cols[1] else NA_character_
+
+  params_df$a_dyskryminacja <- round(extract_numeric(a_col), 3)
+
+  # Trudnosc/progi: modele binarne zwykle maja jedno "b",
+  # a modele politomiczne wiele progow: b1, b2, b3...
+  b_cols <- grep("^b[0-9]*$", names(item_params), value = TRUE)
+  b_cols <- order_parameter_columns(b_cols, "b")
 
   if (length(b_cols) == 1 && b_cols == "b") {
-    params_df$b_trudnosc <- round(item_params[, "b"], 3)
+
+    params_df$b_trudnosc <- round(extract_numeric("b"), 3)
+
   } else if (length(b_cols) > 0) {
+
     for (bc in b_cols) {
-      params_df[[bc]] <- round(item_params[, bc], 3)
+      params_df[[bc]] <- round(extract_numeric(bc), 3)
     }
+
   } else {
-    params_df$b_trudnosc <- NA_real_
+
+    # Awaryjnie: gdy mirt nie zwroci b/b1/b2 przy IRTpars = TRUE,
+    # zachowujemy parametry d1, d2, ... jako parametry techniczne.
+    d_cols <- grep("^d[0-9]*$", names(item_params), value = TRUE)
+    d_cols <- order_parameter_columns(d_cols, "d")
+
+    if (length(d_cols) > 0) {
+      for (dc in d_cols) {
+        params_df[[dc]] <- round(extract_numeric(dc), 3)
+      }
+    } else {
+      params_df$b_trudnosc <- NA_real_
+    }
   }
 
-  # Zgadywanie (g) — tylko modele binarne 3PL
-  params_df$g_zgadywanie <- if ("g" %in% colnames(item_params)) {
-    round(item_params[, "g"], 3)
+  # Zgadywanie: zwykle tylko dla 3PL.
+  params_df$g_zgadywanie <- if ("g" %in% names(item_params)) {
+    round(extract_numeric("g"), 3)
   } else {
     NA_real_
   }
 
-  # Ocena dyskryminacji
-  params_df$Ocena_a <- ""
+  # Gorna asymptota, jesli model ja zwraca.
+  if ("u" %in% names(item_params)) {
+    params_df$u_gorna_asymptota <- round(extract_numeric("u"), 3)
+  }
+
+  # Ocena dyskryminacji.
+  params_df$Ocena_a <- NA_character_
 
   has_a <- !is.na(params_df$a_dyskryminacja)
 
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja < 0.20] <- "Bardzo slaby"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.20 & params_df$a_dyskryminacja < 0.50] <- "Slaby"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.50 & params_df$a_dyskryminacja < 0.80] <- "Umiarkowany"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.80 & params_df$a_dyskryminacja < 1.50] <- "Dobry"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 1.50] <- "Bardzo dobry"
-  params_df$Ocena_a[!has_a] <- NA_character_
+  params_df$Ocena_a[
+    has_a & params_df$a_dyskryminacja < 0.20
+  ] <- "Bardzo slaby"
 
-  return(params_df)
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.20 &
+      params_df$a_dyskryminacja < 0.50
+  ] <- "Slaby"
+
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.50 &
+      params_df$a_dyskryminacja < 0.80
+  ] <- "Umiarkowany"
+
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.80 &
+      params_df$a_dyskryminacja < 1.50
+  ] <- "Dobry"
+
+  params_df$Ocena_a[
+    has_a & params_df$a_dyskryminacja >= 1.50
+  ] <- "Bardzo dobry"
+
+  params_df
 }
 
 #' @title Przygotowanie wykresow dla wybranego modelu IRT
