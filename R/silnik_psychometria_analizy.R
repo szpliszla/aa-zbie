@@ -1892,7 +1892,11 @@ run_item_fit <- function(
 
 #' @title Analiza DIF dla pary grup
 #'
-#' @description Wykonuje logistyczna analize DIF dla dwoch wskazanych grup, korzystajac z wektora theta jako wyniku kontrolnego, i zwraca klasyfikacje ETS oraz wykres roznic.
+#' @description
+#' Wykonuje analize DIF dla dwoch wskazanych grup. Dla itemow binarnych
+#' zachowuje dotychczasowa logistyczna analize DIF z pakietu `sirt`.
+#' Dla itemow politomicznych i mieszanych wykonuje modelowa analize DIF
+#' w pakiecie `mirt`, zgodna z modelami partial-credit.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami itemowymi.
 #' @param group_vec Wektor z przynaleznoscia osob do grup.
@@ -1901,8 +1905,15 @@ run_item_fit <- function(
 #' @param group_focal Wartosc identyfikujaca grupe fokalna.
 #' @param label Etykieta porownania grup.
 #' @param model_name Opcjonalna nazwa modelu, z ktorego pochodza oszacowania theta.
+#' @param item_type Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
+#' @param min_group_n Minimalna liczba osob w kazdej grupie.
+#' @param min_items Minimalna liczba itemow po filtrowaniu.
+#' @param min_category_n Minimalna liczebnosc kategorii uzywana w diagnostyce.
+#' @param alpha Poziom istotnosci uzywany do flagowania DIF.
 #'
-#' @return Lista zawierajaca status, informacje o grupach, wyniki DIF, ramke danych DIF, wykres i dane uzyte w analizie.
+#' @return Lista zawierajaca status, informacje o grupach, wyniki DIF,
+#' ramke danych DIF, wykres i dane uzyte w analizie.
 #'
 #' @examples
 #' # run_dif_pair(data_items, group_vec, theta_vec, "K", "M", "K vs M")
@@ -1915,24 +1926,29 @@ run_dif_pair <- function(
     group_ref,
     group_focal,
     label,
-    model_name = NULL
+    model_name = NULL,
+    item_type = "auto",
+    item_max_scores = NULL,
+    min_group_n = 100,
+    min_items = 3,
+    min_category_n = 5,
+    alpha = 0.05
 ) {
 
-  mask <- group_vec %in% c(group_ref, group_focal) & !is.na(group_vec)
+  item_type <- match.arg(
+    item_type,
+    choices = c("auto", "binary", "polytomous", "mixed")
+  )
 
-  d_items <- data_items[mask, , drop = FALSE]
-  d_group <- group_vec[mask]
-  d_theta <- theta_vec[mask]
+  data_items <- as.data.frame(data_items)
 
-  good_items <- sapply(d_items, function(x) {
-    stats::var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
-  })
-
-  d_items <- d_items[, good_items, drop = FALSE]
-
-  if (ncol(d_items) < 3) {
+  if (nrow(data_items) != length(group_vec)) {
     return(list(
-      status = make_status(FALSE, "too_few_items", "Za malo wspolnych itemow do analizy DIF."),
+      status = make_status(
+        FALSE,
+        "group_length_mismatch",
+        "Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych."
+      ),
       label = label,
       group_ref = group_ref,
       group_focal = group_focal,
@@ -1940,67 +1956,413 @@ run_dif_pair <- function(
     ))
   }
 
-  complete <- rowSums(!is.na(d_items)) > 0
+  mask <- group_vec %in% c(group_ref, group_focal) & !is.na(group_vec)
+
+  d_items <- data_items[mask, , drop = FALSE]
+  d_group <- as.character(group_vec[mask])
+  d_theta <- theta_vec[mask]
+
+  d_group <- factor(
+    d_group,
+    levels = c(as.character(group_ref), as.character(group_focal))
+  )
+
+  complete <- rowSums(!is.na(d_items)) > 0 & !is.na(d_group)
 
   d_items <- d_items[complete, , drop = FALSE]
   d_group <- d_group[complete]
   d_theta <- d_theta[complete]
 
-  group_numeric <- ifelse(d_group == group_ref, 0, 1)
+  n_ref <- sum(d_group == as.character(group_ref))
+  n_focal <- sum(d_group == as.character(group_focal))
+
+  if (n_ref < min_group_n || n_focal < min_group_n) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_group_observations",
+        paste0(
+          "Za malo obserwacji do analizy DIF: ",
+          "n_ref = ", n_ref, ", n_focal = ", n_focal,
+          ". Minimum na grupe: ", min_group_n, "."
+        )
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name
+    ))
+  }
+
+  d_items[] <- lapply(d_items, function(x) {
+    if (is.factor(x) || is.ordered(x)) {
+      as.numeric(as.character(x))
+    } else {
+      as.numeric(x)
+    }
+  })
+
+  good_items <- vapply(
+    names(d_items),
+    function(item) {
+      x <- d_items[[item]]
+
+      total_ok <- sum(!is.na(x)) >= 20
+      var_total <- stats::var(x, na.rm = TRUE)
+      var_ok <- is.finite(var_total) && var_total > 0
+
+      x_ref <- x[d_group == as.character(group_ref)]
+      x_focal <- x[d_group == as.character(group_focal)]
+
+      var_ref <- stats::var(x_ref, na.rm = TRUE)
+      var_focal <- stats::var(x_focal, na.rm = TRUE)
+
+      ref_ok <- is.finite(var_ref) && var_ref > 0
+      focal_ok <- is.finite(var_focal) && var_focal > 0
+
+      vals <- x[!is.na(x)]
+      cats <- table(vals)
+      cat_ok <- sum(cats >= min_category_n) >= 2
+
+      total_ok && var_ok && ref_ok && focal_ok && cat_ok
+    },
+    logical(1)
+  )
+
+  d_items <- d_items[, good_items, drop = FALSE]
+
+  if (ncol(d_items) < min_items) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_items",
+        "Za malo wspolnych itemow do analizy DIF po filtrowaniu."
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name
+    ))
+  }
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(d_items, max, na.rm = TRUE)
+  } else {
+    missing_scores <- setdiff(names(d_items), names(item_max_scores))
+
+    if (length(missing_scores) > 0) {
+      item_max_scores <- c(
+        item_max_scores,
+        sapply(d_items[, missing_scores, drop = FALSE], max, na.rm = TRUE)
+      )
+    }
+
+    item_max_scores <- item_max_scores[names(d_items)]
+  }
+
+  item_max_scores <- as.integer(item_max_scores)
+  names(item_max_scores) <- names(d_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1L
+
+  all_binary <- all(item_max_scores == 1L)
+  any_binary <- any(item_max_scores == 1L)
+
+  inferred_item_type <- if (all_binary) {
+    "binary"
+  } else if (!any_binary) {
+    "polytomous"
+  } else {
+    "mixed"
+  }
+
+  if (item_type == "auto" || item_type != inferred_item_type) {
+    item_type <- inferred_item_type
+  }
+
+  # ---------------------------------------------------------------
+  # Sciezka binarna: logistyczny DIF z sirt
+  # ---------------------------------------------------------------
+
+  if (item_type == "binary") {
+
+    group_numeric <- ifelse(d_group == as.character(group_ref), 0, 1)
+
+    dif_result <- tryCatch(
+      sirt::dif.logistic.regression(
+        dat = d_items,
+        score = d_theta,
+        group = group_numeric
+      ),
+      error = function(e) e
+    )
+
+    if (inherits(dif_result, "error")) {
+      return(list(
+        status = make_status(FALSE, "dif_error", conditionMessage(dif_result)),
+        label = label,
+        group_ref = group_ref,
+        group_focal = group_focal,
+        n_ref = n_ref,
+        n_focal = n_focal,
+        model_name = model_name,
+        item_type = item_type
+      ))
+    }
+
+    item_col <- if ("item" %in% names(dif_result)) {
+      dif_result$item
+    } else {
+      rownames(dif_result)
+    }
+
+    pdiff_col <- if ("pdiff.adj" %in% names(dif_result)) {
+      "pdiff.adj"
+    } else {
+      grep("pdiff", names(dif_result), value = TRUE)[1]
+    }
+
+    ets_col <- if ("DIF.ETS" %in% names(dif_result)) {
+      "DIF.ETS"
+    } else {
+      grep("ETS", names(dif_result), value = TRUE)[1]
+    }
+
+    dif_df <- data.frame(
+      Item = item_col,
+      pdiff_adj = if (!is.na(pdiff_col)) round(dif_result[[pdiff_col]], 4) else NA_real_,
+      ETS = if (!is.na(ets_col)) as.character(dif_result[[ets_col]]) else NA_character_,
+      stringsAsFactors = FALSE
+    )
+
+    dif_df$Interpretacja <- NA_character_
+    dif_df$Interpretacja[grepl("^A", dif_df$ETS)] <- "Pomijalne DIF"
+    dif_df$Interpretacja[grepl("^B", dif_df$ETS)] <- "Umiarkowane DIF"
+    dif_df$Interpretacja[grepl("^C", dif_df$ETS)] <- "Duze DIF"
+    dif_df$pdiff_for_plot <- dif_df$pdiff_adj
+
+    p_dif <- NULL
+
+    if (nrow(dif_df) > 0) {
+      p_dif <- ggplot2::ggplot(
+        dif_df,
+        ggplot2::aes(
+          x = stats::reorder(.data$Item, .data$pdiff_for_plot),
+          y = .data$pdiff_for_plot,
+          fill = .data$ETS
+        )
+      ) +
+        ggplot2::geom_col() +
+        ggplot2::geom_hline(
+          yintercept = c(-1.5, -1, 1, 1.5),
+          linetype = "dashed",
+          alpha = 0.5
+        ) +
+        ggplot2::coord_flip() +
+        ggplot2::labs(
+          title = paste("DIF:", label),
+          subtitle = paste("Metoda: logistyczna analiza DIF; model:", model_name),
+          x = "Item",
+          y = "Adjusted p-difference",
+          fill = "Klasyfikacja ETS"
+        ) +
+        ggplot2::theme_minimal()
+    }
+
+    return(list(
+      status = make_status(TRUE, "ok", NA_character_),
+      label = label,
+      method = "logistic_regression_sirt",
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      n_items = ncol(d_items),
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      dif_result = dif_result,
+      dif_df = dif_df,
+      plots = list(dif = p_dif),
+      data_items = d_items
+    ))
+  }
+
+  # ---------------------------------------------------------------
+  # Sciezka politomiczna / mieszana: modelowy DIF w mirt
+  # ---------------------------------------------------------------
+
+  itemtype_vector <- ifelse(
+    item_max_scores == 1L,
+    "2PL",
+    "gpcm"
+  )
+
+  itemtype_vector <- unname(itemtype_vector)
+
+  n_items <- ncol(d_items)
+  model_spec <- paste0("F = 1-", n_items)
+
+  model_base_fit <- tryCatch({
+
+    values_base <- mirt::multipleGroup(
+      d_items,
+      model = model_spec,
+      group = d_group,
+      itemtype = itemtype_vector,
+      invariance = c(colnames(d_items), "free_means", "free_var"),
+      pars = "values",
+      verbose = FALSE
+    )
+
+    values_base$value[values_base$name == "a1"] <- 1
+    values_base$est[values_base$name == "a1"] <- FALSE
+
+    model_base <- mirt::multipleGroup(
+      d_items,
+      model = model_spec,
+      group = d_group,
+      itemtype = itemtype_vector,
+      invariance = c(colnames(d_items), "free_means", "free_var"),
+      pars = values_base,
+      verbose = FALSE
+    )
+
+    list(
+      model = model_base,
+      values = values_base
+    )
+
+  }, error = function(e) e)
+
+  if (inherits(model_base_fit, "error")) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "dif_mirt_model_error",
+        conditionMessage(model_base_fit)
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      data_items = d_items
+    ))
+  }
+
+  model_base <- model_base_fit$model
+  values_base <- model_base_fit$values
+
+  dif_parameters <- unique(values_base$name[grepl("^d", values_base$name)])
+
+  if (length(dif_parameters) == 0) {
+    dif_parameters <- "d"
+  }
 
   dif_result <- tryCatch(
-    sirt::dif.logistic.regression(
-      dat = d_items,
-      score = d_theta,
-      group = group_numeric
+    mirt::DIF(
+      model_base,
+      which.par = dif_parameters,
+      scheme = "drop",
+      p.adjust = "holm"
     ),
     error = function(e) e
   )
 
   if (inherits(dif_result, "error")) {
     return(list(
-      status = make_status(FALSE, "dif_error", conditionMessage(dif_result)),
+      status = make_status(
+        FALSE,
+        "dif_mirt_error",
+        conditionMessage(dif_result)
+      ),
       label = label,
       group_ref = group_ref,
       group_focal = group_focal,
-      model_name = model_name
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      model_base = model_base,
+      data_items = d_items
     ))
   }
 
+  dif_raw <- as.data.frame(dif_result)
+
+  item_names <- rownames(dif_raw)
+  if (is.null(item_names)) {
+    item_names <- seq_len(nrow(dif_raw))
+  }
+
+  x2_col <- grep("^X2$|Chisq|Chi", names(dif_raw), value = TRUE)[1]
+  df_col <- grep("^df$|Df", names(dif_raw), value = TRUE)[1]
+  p_col <- grep("^p$|p$", names(dif_raw), value = TRUE)[1]
+  p_adj_col <- grep("adj|holm|p\\.adj|p_adj", names(dif_raw), ignore.case = TRUE, value = TRUE)[1]
+
+  p_raw <- if (!is.na(p_col)) {
+    suppressWarnings(as.numeric(dif_raw[[p_col]]))
+  } else {
+    rep(NA_real_, nrow(dif_raw))
+  }
+
+  p_holm <- if (!is.na(p_adj_col)) {
+    suppressWarnings(as.numeric(dif_raw[[p_adj_col]]))
+  } else {
+    stats::p.adjust(p_raw, method = "holm")
+  }
+
   dif_df <- data.frame(
-    Item = dif_result$item,
-    pdiff_adj = round(dif_result$pdiff.adj, 4),
-    ETS = dif_result$DIF.ETS,
+    Item = item_names,
+    X2 = if (!is.na(x2_col)) round(as.numeric(dif_raw[[x2_col]]), 3) else NA_real_,
+    df = if (!is.na(df_col)) as.numeric(dif_raw[[df_col]]) else NA_real_,
+    p = round(p_raw, 4),
+    p_holm = round(p_holm, 4),
     stringsAsFactors = FALSE
   )
 
-  dif_df$Interpretacja <- ""
-  dif_df$Interpretacja[dif_df$ETS == "A"] <- "Pomijalne DIF"
-  dif_df$Interpretacja[dif_df$ETS == "B"] <- "Umiarkowane DIF"
-  dif_df$Interpretacja[dif_df$ETS == "C"] <- "Duze DIF"
-  dif_df$pdiff_for_plot <- dif_result$pdiff.adj
+  dif_df$DIF_signal <- !is.na(dif_df$p_holm) & dif_df$p_holm < alpha
+
+  dif_df$Interpretacja <- ifelse(
+    dif_df$DIF_signal,
+    "Sygnal DIF",
+    "Brak sygnalu DIF"
+  )
+
+  dif_df$neg_log10_p_holm <- -log10(pmax(dif_df$p_holm, .Machine$double.xmin))
 
   p_dif <- NULL
 
   if (nrow(dif_df) > 0) {
     p_dif <- ggplot2::ggplot(
       dif_df,
-      ggplot2::aes(x = stats::reorder(.data$Item, .data$pdiff_for_plot), y = .data$pdiff_for_plot, fill = .data$ETS)
+      ggplot2::aes(
+        x = stats::reorder(.data$Item, .data$neg_log10_p_holm),
+        y = .data$neg_log10_p_holm,
+        fill = .data$DIF_signal
+      )
     ) +
       ggplot2::geom_col() +
       ggplot2::geom_hline(
-        yintercept = c(-1.5, -1, 1, 1.5),
+        yintercept = -log10(alpha),
         linetype = "dashed",
-        color = c("red", "orange", "orange", "red"),
         alpha = 0.5
       ) +
-      ggplot2::scale_fill_manual(values = c("A" = "green4", "B" = "orange", "C" = "red")) +
       ggplot2::coord_flip() +
       ggplot2::labs(
         title = paste("DIF:", label),
+        subtitle = paste("Metoda: modelowy DIF w mirt; model:", model_name),
         x = "Item",
-        y = "Adjusted p-difference",
-        fill = "Klasyfikacja ETS"
+        y = "-log10(p Holm)",
+        fill = paste0("p Holm < ", alpha)
       ) +
       ggplot2::theme_minimal()
   }
@@ -2008,12 +2370,18 @@ run_dif_pair <- function(
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
+    method = "mirt_model_based_partial_credit",
     group_ref = group_ref,
     group_focal = group_focal,
-    n_ref = sum(group_numeric == 0),
-    n_focal = sum(group_numeric == 1),
+    n_ref = n_ref,
+    n_focal = n_focal,
     n_items = ncol(d_items),
     model_name = model_name,
+    item_type = item_type,
+    item_max_scores = item_max_scores,
+    itemtype_vector = stats::setNames(itemtype_vector, colnames(d_items)),
+    dif_parameters = dif_parameters,
+    model_base = model_base,
     dif_result = dif_result,
     dif_df = dif_df,
     plots = list(dif = p_dif),
@@ -2021,9 +2389,14 @@ run_dif_pair <- function(
   )
 }
 
+
 #' @title Analiza DIF dla wszystkich par grup
 #'
-#' @description Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej, osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+#' @description
+#' Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej,
+#' osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+#' Funkcja przekazuje do analizy informacje o typie itemow i maksymalnych
+#' wynikach itemow, jezeli sa dostepne w wynikach IRT.
 #'
 #' @param raw_data Ramka danych z danymi zrodlowymi, w tym zmienna grupujaca.
 #' @param items_data Ramka danych lub macierz z odpowiedziami itemowymi.
@@ -2033,6 +2406,10 @@ run_dif_pair <- function(
 #' @param has_groups Wartosc logiczna informujaca, czy dane maja zdefiniowana zmienna grupujaca.
 #' @param has_versions Wartosc logiczna informujaca, czy analize wykonac osobno dla wykrytych wersji testu.
 #' @param detected_version_col Nazwa kolumny w `raw_data` zawierajacej wykryta wersje testu.
+#' @param min_group_n Minimalna liczba osob w kazdej grupie.
+#' @param min_items Minimalna liczba itemow po filtrowaniu.
+#' @param min_category_n Minimalna liczebnosc kategorii uzywana w diagnostyce.
+#' @param alpha Poziom istotnosci uzywany do flagowania DIF.
 #'
 #' @return Lista zawierajaca status, nazwe zmiennej grupujacej, poziomy grup oraz wyniki analiz DIF dla par grup.
 #'
@@ -2048,7 +2425,11 @@ run_dif_analysis <- function(
     group_var = NULL,
     has_groups = FALSE,
     has_versions = FALSE,
-    detected_version_col = "detected_version"
+    detected_version_col = "detected_version",
+    min_group_n = 100,
+    min_items = 3,
+    min_category_n = 5,
+    alpha = 0.05
 ) {
 
   if (is.null(dif_group_var) && has_groups) {
@@ -2057,7 +2438,11 @@ run_dif_analysis <- function(
 
   if (is.null(dif_group_var) || !dif_group_var %in% names(raw_data)) {
     return(list(
-      status = make_status(FALSE, "missing_group_var", "Analiza DIF pominieta - nie podano zmiennej grupujacej."),
+      status = make_status(
+        FALSE,
+        "missing_group_var",
+        "Analiza DIF pominieta - nie podano zmiennej grupujacej."
+      ),
       results = list()
     ))
   }
@@ -2067,87 +2452,105 @@ run_dif_analysis <- function(
 
   if (length(unique_groups) < 2) {
     return(list(
-      status = make_status(FALSE, "too_few_groups", "Zmienna grupujaca ma mniej niz 2 unikalne wartosci."),
+      status = make_status(
+        FALSE,
+        "too_few_groups",
+        "Zmienna grupujaca ma mniej niz 2 unikalne wartosci."
+      ),
       results = list()
     ))
   }
 
-  dif_results <- list()
+  extract_groups_for_model <- function(model_data) {
 
-  if (has_versions) {
+    row_idx <- suppressWarnings(as.integer(rownames(model_data)))
 
-    for (v in names(irt_results)) {
-
-      label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
-      v_irt <- irt_results[[v]]
-      if (is.null(v_irt) || isFALSE(v_irt$status$ok[1])) next
-
-      v_data <- v_irt$data_items
-      v_theta <- v_irt$theta_scores[, 1]
-
-      if (v != "all") {
-        if (!detected_version_col %in% names(raw_data)) next
-        v_rows <- which(raw_data[[detected_version_col]] == as.numeric(v))
-        v_kept <- v_rows %in% as.integer(rownames(v_data))
-        v_group <- dif_groups[v_rows][v_kept]
-      } else {
-        v_complete <- rowSums(!is.na(items_data[, colnames(v_data), drop = FALSE])) > 0
-        v_group <- dif_groups[v_complete]
-      }
-
-      v_unique <- sort(unique(v_group[!is.na(v_group)]))
-
-      if (length(v_unique) >= 2) {
-        for (i in 1:(length(v_unique) - 1)) {
-          for (j in (i + 1):length(v_unique)) {
-
-            pair_label <- paste(v_unique[i], "vs", v_unique[j], label_v)
-
-            result <- run_dif_pair(
-              v_data,
-              v_group,
-              v_theta,
-              v_unique[i],
-              v_unique[j],
-              pair_label,
-              model_name = v_irt$preferred_name
-            )
-
-            dif_results[[pair_label]] <- result
-          }
-        }
-      }
+    if (
+      length(row_idx) == nrow(model_data) &&
+        all(!is.na(row_idx)) &&
+        all(row_idx >= 1) &&
+        all(row_idx <= nrow(raw_data))
+    ) {
+      return(dif_groups[row_idx])
     }
 
+    common_items <- intersect(colnames(model_data), colnames(items_data))
+
+    if (length(common_items) == 0) {
+      return(rep(NA, nrow(model_data)))
+    }
+
+    complete_rows <- rowSums(!is.na(items_data[, common_items, drop = FALSE])) > 0
+
+    dif_groups[complete_rows]
+  }
+
+  dif_results <- list()
+
+  selected_irt_names <- if (has_versions) {
+    names(irt_results)
   } else {
+    "all"
+  }
 
-    irt_all <- irt_results[["all"]]
+  for (v in selected_irt_names) {
 
-    if (!is.null(irt_all) && isTRUE(irt_all$status$ok[1])) {
+    v_irt <- irt_results[[v]]
 
-      theta_all <- irt_all$theta_scores[, 1]
-      data_all <- irt_all$data_items
+    if (is.null(v_irt) || isFALSE(v_irt$status$ok[1])) {
+      next
+    }
 
-      complete_rows <- rowSums(!is.na(items_data[, colnames(data_all), drop = FALSE])) > 0
-      dif_group_filtered <- dif_groups[complete_rows]
+    v_data <- v_irt$data_items
+    v_theta <- v_irt$theta_scores[, 1]
+    v_group <- extract_groups_for_model(v_data)
 
-      for (i in 1:(length(unique_groups) - 1)) {
-        for (j in (i + 1):length(unique_groups)) {
+    if (length(v_group) != nrow(v_data)) {
+      next
+    }
 
-          pair_label <- paste(unique_groups[i], "vs", unique_groups[j])
+    v_unique <- sort(unique(v_group[!is.na(v_group)]))
 
-          result <- run_dif_pair(
-            data_all,
-            dif_group_filtered,
-            theta_all,
-            unique_groups[i],
-            unique_groups[j],
-            pair_label,
-            model_name = irt_all$preferred_name
-          )
+    if (length(v_unique) < 2) {
+      next
+    }
 
-          dif_results[[pair_label]] <- result
-        }
+    label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
+
+    pair_item_type <- if (!is.null(v_irt$item_type)) {
+      v_irt$item_type
+    } else {
+      "auto"
+    }
+
+    pair_item_max_scores <- if (!is.null(v_irt$item_max_scores)) {
+      v_irt$item_max_scores
+    } else {
+      NULL
+    }
+
+    for (i in seq_len(length(v_unique) - 1)) {
+      for (j in (i + 1):length(v_unique)) {
+
+        pair_label <- paste(v_unique[i], "vs", v_unique[j], label_v)
+
+        result <- run_dif_pair(
+          data_items = v_data,
+          group_vec = v_group,
+          theta_vec = v_theta,
+          group_ref = v_unique[i],
+          group_focal = v_unique[j],
+          label = pair_label,
+          model_name = v_irt$preferred_name,
+          item_type = pair_item_type,
+          item_max_scores = pair_item_max_scores,
+          min_group_n = min_group_n,
+          min_items = min_items,
+          min_category_n = min_category_n,
+          alpha = alpha
+        )
+
+        dif_results[[pair_label]] <- result
       }
     }
   }
