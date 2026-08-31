@@ -1573,15 +1573,21 @@ run_irt_for_items <- function(
 
 #' @title Analiza dopasowania itemow w modelu IRT
 #'
-#' @description Oblicza statystyki dopasowania itemow dla wybranego modelu IRT, w tym S-X2 oraz infit/outfit, a opcjonalnie takze PV-Q1*. Funkcja zwraca tabele i wykresy bez ich wyswietlania.
+#' @description
+#' Oblicza statystyki dopasowania itemow dla wybranego modelu IRT.
+#' Funkcja obsluguje modele binarne oraz modele partial-credit dla itemow
+#' punktowanych politomicznie. Zwraca statystyke S-X2, opcjonalnie infit/outfit
+#' oraz wykres diagnostyczny, bez wypisywania wynikow do konsoli.
 #'
 #' @param irt_result Lista wynikowa zwrocona przez `run_irt_for_items()`.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana w tytule wykresu.
 #' @param run_pvq1 Wartosc logiczna okreslajaca, czy probowac obliczyc statystyke PV-Q1*.
 #' @param pvq1_n_max Maksymalna liczba obserwacji, dla ktorej obliczana jest PV-Q1*.
 #' @param pvq1_items_max Maksymalna liczba itemow, dla ktorej obliczana jest PV-Q1*.
+#' @param alpha Poziom istotnosci uzywany do flagowania niedopasowania S-X2.
 #'
-#' @return Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze statystykami, status PV-Q1* oraz obiekt wykresu.
+#' @return Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze
+#' statystykami, status PV-Q1* oraz obiekt wykresu.
 #'
 #' @examples
 #' # irt <- run_irt_for_items(data_items, show_plots = FALSE)
@@ -1593,18 +1599,46 @@ run_item_fit <- function(
     label = "Caly test",
     run_pvq1 = FALSE,
     pvq1_n_max = 500,
-    pvq1_items_max = 30
+    pvq1_items_max = 30,
+    alpha = 0.05
 ) {
 
-  if (is.null(irt_result) || isFALSE(irt_result$status$ok[1])) {
+  if (
+    is.null(irt_result) ||
+      is.null(irt_result$status) ||
+      isFALSE(irt_result$status$ok[1]) ||
+      is.null(irt_result$preferred_model)
+  ) {
     return(list(
-      status = make_status(FALSE, "no_irt_model", "Brak modelu IRT - pominieto item fit."),
+      status = make_status(
+        FALSE,
+        "no_irt_model",
+        "Brak modelu IRT - pominieto item fit."
+      ),
       label = label
     ))
   }
 
   model <- irt_result$preferred_model
   model_name <- irt_result$preferred_name
+  item_type <- if (!is.null(irt_result$item_type)) irt_result$item_type else NA_character_
+  data_items <- irt_result$data_items
+
+  item_max_scores <- irt_result$item_max_scores
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    item_max_scores <- item_max_scores[colnames(data_items)]
+  }
+
+  item_max_scores <- as.numeric(item_max_scores)
+  names(item_max_scores) <- colnames(data_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
+
+  # ---------------------------------------------------------------
+  # S-X2
+  # ---------------------------------------------------------------
 
   sx2_result <- tryCatch(
     mirt::itemfit(model, fit_stats = "S_X2"),
@@ -1615,29 +1649,59 @@ run_item_fit <- function(
   sx2_status <- make_status(TRUE, "ok", NA_character_)
 
   if (inherits(sx2_result, "error")) {
-    sx2_status <- make_status(FALSE, "sx2_error", conditionMessage(sx2_result))
+
+    sx2_status <- make_status(
+      FALSE,
+      "sx2_error",
+      conditionMessage(sx2_result)
+    )
     sx2_result <- NULL
+
   } else {
-    sx2_col <- grep("S_X2", names(sx2_result), value = TRUE)[1]
-    df_col <- grep("df", names(sx2_result), value = TRUE)[1]
-    p_col <- grep("^p", names(sx2_result), value = TRUE)[1]
+
+    sx2_col <- grep("S_X2|S-X2", names(sx2_result), value = TRUE)[1]
+    df_col <- grep("^df$|df", names(sx2_result), value = TRUE)[1]
+    p_col <- grep("^p$|p$", names(sx2_result), value = TRUE)[1]
 
     if (!is.na(sx2_col) && !is.na(df_col) && !is.na(p_col)) {
+
       sx2_df <- data.frame(
         Item = rownames(sx2_result),
-        S_X2 = round(sx2_result[[sx2_col]], 3),
-        df = sx2_result[[df_col]],
-        p = round(sx2_result[[p_col]], 4),
+        Max_score = as.numeric(item_max_scores[rownames(sx2_result)]),
+        S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
+        df = as.numeric(sx2_result[[df_col]]),
+        p = round(as.numeric(sx2_result[[p_col]]), 4),
         stringsAsFactors = FALSE
       )
 
+      sx2_df$p_holm <- round(
+        stats::p.adjust(sx2_df$p, method = "holm"),
+        4
+      )
+
       sx2_df$Dopasowanie <- ifelse(
-        sx2_df$p >= 0.05,
-        "OK",
-        ifelse(sx2_df$p >= 0.01, "Watpliwe", "Zle")
+        is.na(sx2_df$p_holm),
+        "Brak danych",
+        ifelse(
+          sx2_df$p_holm >= alpha,
+          "OK",
+          "Sygnal niedopasowania"
+        )
+      )
+
+    } else {
+
+      sx2_status <- make_status(
+        FALSE,
+        "sx2_columns_missing",
+        "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
       )
     }
   }
+
+  # ---------------------------------------------------------------
+  # Infit / outfit
+  # ---------------------------------------------------------------
 
   infit_result <- tryCatch(
     mirt::itemfit(model, fit_stats = "infit"),
@@ -1648,102 +1712,180 @@ run_item_fit <- function(
   infit_status <- make_status(TRUE, "ok", NA_character_)
 
   if (inherits(infit_result, "error")) {
-    infit_status <- make_status(FALSE, "infit_error", conditionMessage(infit_result))
+
+    infit_status <- make_status(
+      FALSE,
+      "infit_error",
+      conditionMessage(infit_result)
+    )
     infit_result <- NULL
+
   } else {
+
     infit_col <- grep("infit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
     outfit_col <- grep("outfit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
 
     if (!is.na(infit_col) && !is.na(outfit_col)) {
+
       infit_df <- data.frame(
         Item = rownames(infit_result),
-        Infit_MNSQ = round(infit_result[[infit_col]], 3),
-        Outfit_MNSQ = round(infit_result[[outfit_col]], 3),
+        Infit_MNSQ = round(as.numeric(infit_result[[infit_col]]), 3),
+        Outfit_MNSQ = round(as.numeric(infit_result[[outfit_col]]), 3),
         stringsAsFactors = FALSE
       )
 
       infit_df$Infit_ocena <- ifelse(
-        infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30,
-        "OK",
-        ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        is.na(infit_df$Infit_MNSQ),
+        "Brak danych",
+        ifelse(
+          infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30,
+          "OK",
+          ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        )
       )
 
       infit_df$Outfit_ocena <- ifelse(
-        infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30,
-        "OK",
-        ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        is.na(infit_df$Outfit_MNSQ),
+        "Brak danych",
+        ifelse(
+          infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30,
+          "OK",
+          ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        )
+      )
+
+    } else {
+
+      infit_status <- make_status(
+        FALSE,
+        "infit_columns_missing",
+        "Nie rozpoznano kolumn infit/outfit w wyniku mirt::itemfit()."
       )
     }
   }
 
-  n_obs <- nrow(irt_result$data_items)
-  n_items_fit <- ncol(irt_result$data_items)
+  # ---------------------------------------------------------------
+  # PV-Q1*
+  # ---------------------------------------------------------------
+
+  n_obs <- nrow(data_items)
+  n_items_fit <- ncol(data_items)
+
   pvq1_result <- NULL
   pvq1_status <- make_status(FALSE, "pvq1_skipped", "PV-Q1* pominieto.")
 
   if (run_pvq1 && n_obs <= pvq1_n_max && n_items_fit <= pvq1_items_max) {
+
     pvq1_result <- tryCatch(
       mirt::itemfit(model, fit_stats = "PV_Q1*"),
       error = function(e) e
     )
 
     if (inherits(pvq1_result, "error")) {
-      pvq1_status <- make_status(FALSE, "pvq1_error", conditionMessage(pvq1_result))
+      pvq1_status <- make_status(
+        FALSE,
+        "pvq1_error",
+        conditionMessage(pvq1_result)
+      )
       pvq1_result <- NULL
     } else {
       pvq1_status <- make_status(TRUE, "ok", NA_character_)
     }
   }
 
+  # ---------------------------------------------------------------
+  # Laczenie wynikow i wykres
+  # ---------------------------------------------------------------
+
+  fit_combined <- NULL
   fit_plot_data <- NULL
   p_fit <- NULL
 
-  if (!is.null(infit_result) && !is.null(sx2_result)) {
-    p_col <- grep("^p", names(sx2_result), value = TRUE)[1]
-    infit_col <- grep("infit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
-    outfit_col <- grep("outfit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
+  if (!is.null(sx2_df) || !is.null(infit_df)) {
 
-    if (!is.na(p_col) && !is.na(infit_col) && !is.na(outfit_col)) {
-      fit_plot_data <- data.frame(
-        Item = rownames(infit_result),
-        Infit = infit_result[[infit_col]],
-        Outfit = infit_result[[outfit_col]],
-        S_X2_p = sx2_result[[p_col]],
-        stringsAsFactors = FALSE
+    if (!is.null(sx2_df) && !is.null(infit_df)) {
+
+      fit_combined <- merge(
+        sx2_df,
+        infit_df,
+        by = "Item",
+        all = TRUE
       )
 
-      p_fit <- ggplot2::ggplot(fit_plot_data, ggplot2::aes(x = .data$Infit, y = .data$Outfit)) +
-        ggplot2::geom_point(ggplot2::aes(color = .data$S_X2_p < 0.05), size = 3) +
-        ggplot2::geom_text(ggplot2::aes(label = .data$Item), size = 2, vjust = -1, alpha = 0.6) +
-        ggplot2::geom_hline(yintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-        ggplot2::geom_vline(xintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-        ggplot2::labs(
-          title = paste("Mapa dopasowania itemow -", label),
-          x = "Infit MNSQ",
-          y = "Outfit MNSQ",
-          color = "S-X2 p < 0.05"
-        ) +
-        ggplot2::theme_minimal()
+    } else if (!is.null(sx2_df)) {
+
+      fit_combined <- sx2_df
+
+    } else {
+
+      fit_combined <- infit_df
     }
+  }
+
+  if (!is.null(sx2_df) && !is.null(infit_df)) {
+
+    fit_plot_data <- merge(
+      sx2_df[, c("Item", "p", "p_holm", "Dopasowanie")],
+      infit_df[, c("Item", "Infit_MNSQ", "Outfit_MNSQ")],
+      by = "Item",
+      all = TRUE
+    )
+
+    fit_plot_data$S_X2_flag <- !is.na(fit_plot_data$p_holm) &
+      fit_plot_data$p_holm < alpha
+
+    p_fit <- ggplot2::ggplot(
+      fit_plot_data,
+      ggplot2::aes(x = .data$Infit_MNSQ, y = .data$Outfit_MNSQ)
+    ) +
+      ggplot2::geom_point(
+        ggplot2::aes(shape = .data$S_X2_flag),
+        size = 3
+      ) +
+      ggplot2::geom_text(
+        ggplot2::aes(label = .data$Item),
+        size = 2,
+        vjust = -1,
+        alpha = 0.6
+      ) +
+      ggplot2::geom_hline(
+        yintercept = c(0.70, 1.30),
+        linetype = "dashed",
+        alpha = 0.5
+      ) +
+      ggplot2::geom_vline(
+        xintercept = c(0.70, 1.30),
+        linetype = "dashed",
+        alpha = 0.5
+      ) +
+      ggplot2::labs(
+        title = paste("Mapa dopasowania itemow -", label, "-", model_name),
+        subtitle = paste("Typ itemow:", item_type),
+        x = "Infit MNSQ",
+        y = "Outfit MNSQ",
+        shape = paste0("S-X2 Holm p < ", alpha)
+      ) +
+      ggplot2::theme_minimal()
   }
 
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
     model_name = model_name,
+    item_type = item_type,
     sx2 = sx2_result,
     sx2_df = sx2_df,
     sx2_status = sx2_status,
     infit = infit_result,
     infit_df = infit_df,
     infit_status = infit_status,
+    fit_combined = fit_combined,
     pvq1 = pvq1_result,
     pvq1_status = pvq1_status,
     fit_plot_data = fit_plot_data,
     plots = list(fit_map = p_fit)
   )
 }
-
 # ============================================================================
 # ANALIZA DIF
 # ============================================================================
