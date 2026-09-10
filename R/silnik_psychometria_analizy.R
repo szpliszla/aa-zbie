@@ -1051,7 +1051,7 @@ run_irt_for_items <- function(
   model_spec <- paste0("F = 1-", n_items)
 
   get_model_ic <- function(model, model_name) {
-    loglik <- stats::logLik(model)
+    loglik <- mirt::extract.mirt(model, "logLik")
 
     data.frame(
       Model = model_name,
@@ -1059,7 +1059,7 @@ run_irt_for_items <- function(
       BIC = round(as.numeric(mirt::extract.mirt(model, "BIC")), 1),
       LogLik = round(as.numeric(loglik), 1),
       df = tryCatch(
-        as.numeric(attr(loglik, "df")),
+        as.numeric(mirt::extract.mirt(model, "nest")),
         error = function(e) NA_real_
       ),
       stringsAsFactors = FALSE
