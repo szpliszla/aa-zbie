@@ -13,17 +13,17 @@ output:
     code_folding: hide
     df_print: paged
 params:
-  # --- Ścieżki i identyfikatory struktur ---
+  # --- Sciezki i identyfikatory struktur ---
   data_path: !expr system.file("extdata", "math_data.csv", package = "aazbie")
   item_prefix: "mat_"
   id_var: "id_ucznia"
   group_var: "grupa"
   exclude_items: NULL
-  
-  # --- Zarządzanie wersjami testu ---
-  version_var: "pomiar"               
-  min_pattern_prop: 0.05             
-  item_missing_max_prop: 0.90        
+
+  # --- Zarzadzanie wersjami testu ---
+  version_var: "pomiar"
+  min_pattern_prop: 0.05
+  item_missing_max_prop: 0.90
   detected_version_col: "detected_version"
 
   # --- Kryteria Walidacji i CTT ---
@@ -31,12 +31,12 @@ params:
   discrimination_min: 0.30
   correlation_threshold_negative: 0.00
   correlation_threshold_low: 0.15
-  
+
   # --- Parametry Analizy DIF ---
-  dif_group_var: "grupa"              
-  dif_method: "logistic"              
-editor_options: 
-  markdown: 
+  dif_group_var: "grupa"
+  dif_method: "logistic"
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -52,45 +52,50 @@ knitr::opts_chunk$set(
   error = TRUE
 )
 
-options(knitr.table.format = "html")
-
 if (requireNamespace("aazbie", quietly = TRUE)) {
   library(aazbie)
 }
 
-
+# Fallback: zaladuj pliki silnika ze zrodel, jesli pakiet nie jest zainstalowany
 if (!exists("read_psych_data", mode = "function")) {
-  engine_candidates <- c(
+  engine_candidates_valid <- c(
     file.path("..", "R", "silnik_psychometria_wczytanie_walidacja.R"),
     file.path("R", "silnik_psychometria_wczytanie_walidacja.R")
   )
-  engine_path <- engine_candidates[file.exists(engine_candidates)][1]
-
-  if (is.na(engine_path)) {
+  engine_path_valid <- engine_candidates_valid[file.exists(engine_candidates_valid)][1]
+  if (is.na(engine_path_valid)) {
     stop("Nie znaleziono pliku silnika: silnik_psychometria_wczytanie_walidacja.R")
   }
+  source(engine_path_valid)
+}
 
-  source(engine_path)
+if (!exists("run_ctt_for_items", mode = "function")) {
+  engine_candidates_analizy <- c(
+    file.path("..", "R", "silnik_psychometria_analizy.R"),
+    file.path("R", "silnik_psychometria_analizy.R")
+  )
+  engine_path_analizy <- engine_candidates_analizy[file.exists(engine_candidates_analizy)][1]
+  if (is.na(engine_path_analizy)) {
+    stop("Nie znaleziono pliku silnika: silnik_psychometria_analizy.R")
+  }
+  source(engine_path_analizy)
 }
 ```
 
 # Instrukcja przygotowania danych
 
-Opis wymagań dotyczących formatu danych, struktury, kodowania odpowiedzi oraz parametrów funkcji `aazbie::render_report()` znajduje się w [README](https://github.com/szpliszla/aa-zbie#readme) projektu. \# Wczytywanie i walidacja danych
+Opis wymagan dotyczacych formatu danych, struktury, kodowania odpowiedzi oraz parametrow funkcji `aazbie::render_report()` znajduje sie w [README](https://github.com/szpliszla/aa-zbie#readme) projektu. # Wczytywanie i walidacja danych
 
 ```{r load-data}
 # ============================================================================
 # WCZYTYWANIE DANYCH PRZEZ SILNIK
 # ============================================================================
 
-# Silnik automatycznie rozpozna format (CSV, XLSX, DTA, RDS).
-# Sciezka do pliku musi byc przekazana jawnie przez params$data_path.
-
 raw_data <- read_psych_data(params$data_path)
 
 cat("### Podsumowanie wczytanego zbioru\n\n")
-cat("- **Plik wejściowy:**", params$data_path, "\n")
-cat("- **Liczba wierszy (N osób):**", nrow(raw_data), "\n")
+cat("- **Plik wejsciowy:**", params$data_path, "\n")
+cat("- **Liczba wierszy (N osob):**", nrow(raw_data), "\n")
 cat("- **Liczba kolumn (Wszystkie zmienne):**", ncol(raw_data), "\n\n")
 ```
 
@@ -99,21 +104,17 @@ cat("- **Liczba kolumn (Wszystkie zmienne):**", ncol(raw_data), "\n\n")
 # IDENTYFIKACJA POZYCJI TESTOWYCH PRZEZ SILNIK
 # ============================================================================
 
-# Silnik bezpiecznie sortuje pozycje, weryfikuje ich istnienie i usuwa wykluczone.
-# W razie braku pasujących kolumn, to silnik wygeneruje czytelny błąd systemowy.
 item_cols <- identify_item_columns(
-  raw_data = raw_data, 
-  item_prefix = params$item_prefix, 
+  raw_data = raw_data,
+  item_prefix = params$item_prefix,
   exclude_items = params$exclude_items
 )
 
-# Renderowanie informacji o wykluczeniach (jeśli istnieją)
 if (length(params$exclude_items) > 0) {
-  cat("### Ręcznie wykluczone pozycje testowe\n\n")
+  cat("### Recznie wykluczone pozycje testowe\n\n")
   cat(paste(params$exclude_items, collapse = ", "), "\n\n")
 }
 
-# Renderowanie podsumowania dla czytelnika
 cat("### Zidentyfikowane pozycje testowe\n\n")
 cat("- **Prefiks:**", params$item_prefix, "\n")
 cat("- **Liczba aktywnych pozycji:**", length(item_cols), "\n")
@@ -137,6 +138,11 @@ items_data <- validation_result$items_data
 validation_issues <- validation_result$validation_issues
 validation_warnings <- validation_result$validation_warnings
 
+# Informacje o typie itemow (binarne / politomiczne / mieszane)
+item_type <- validation_result$item_type
+item_max_scores <- validation_result$item_max_scores
+n_categories <- validation_result$n_categories
+
 # --- 1. Sprawdzenie typow danych ---
 cat("### 1. Sprawdzenie typow danych\n\n")
 
@@ -157,22 +163,48 @@ if (length(non_numeric) > 0) {
   cat("Wszystkie kolumny itemow sa numeryczne. OK\n\n")
 }
 
-# --- 2. Sprawdzenie wartosci (czy 0/1/NA) ---
-cat("### 2. Sprawdzenie kodowania odpowiedzi (0/1/NA)\n\n")
+# --- 2. Sprawdzenie kodowania odpowiedzi ---
+cat("### 2. Sprawdzenie kodowania odpowiedzi\n\n")
+
+if (!is.null(item_type) && item_type %in% c("polytomous", "mixed")) {
+  cat("**Typ itemow:**", item_type, "\n\n")
+
+  n_binary <- sum(item_max_scores == 1, na.rm = TRUE)
+  n_poly <- sum(item_max_scores > 1, na.rm = TRUE)
+
+  if (item_type == "mixed") {
+    cat(sprintf("- Itemy binarne (0/1): %d\n", n_binary))
+    cat(sprintf("- Itemy politomiczne (0/1/2/...): %d\n", n_poly))
+  } else {
+    cat(sprintf("- Itemy politomiczne (0/1/2/...): %d\n", n_poly))
+  }
+  cat("\n")
+
+  if (n_poly > 0) {
+    poly_items <- names(item_max_scores[item_max_scores > 1])
+    poly_info <- data.frame(
+      Item = poly_items,
+      Max_score = item_max_scores[poly_items],
+      N_kategorii = n_categories[poly_items],
+      row.names = NULL
+    )
+    print(knitr::kable(poly_info, row.names = FALSE))
+    cat("\n")
+  }
+} else {
+  cat("Wszystkie itemy zakodowane jako 0/1 (binarne). OK\n\n")
+}
 
 non_binary <- validation_result$non_binary_items
 
 if (length(non_binary) > 0) {
-  cat("**BLAD:** Nastepujace itemy zawieraja wartosci inne niz 0/1:\n\n")
+  cat("**UWAGA:** Nastepujace itemy zawieraja nieprawidlowe wartosci i zostana wykluczone:\n\n")
 
   for (col in non_binary) {
     vals <- validation_result$non_binary_values[[col]]
     cat("-", col, ": wartosci =", paste(vals, collapse = ", "), "\n")
   }
-
-  cat("\n**UWAGA:** Itemy z wartosciami innymi niz 0/1 zostana wykluczone z analiz.\n\n")
-} else {
-  cat("Wszystkie itemy zakodowane poprawnie jako 0/1. OK\n\n")
+  cat("\n")
 }
 
 # --- 3. Braki danych ---
@@ -188,7 +220,6 @@ missing_summary <- data.frame(
 )
 missing_summary <- missing_summary[order(-missing_summary$Procent_brakow), ]
 
-# Pokaz tylko te z brakami
 items_with_missing <- missing_summary[missing_summary$Procent_brakow > 0, ]
 if (nrow(items_with_missing) > 0) {
   cat("Itemy z brakami danych:\n\n")
@@ -222,26 +253,32 @@ if (length(zero_var_items) > 0) {
   cat("Wszystkie itemy maja niezerowa wariancje. OK\n\n")
 }
 
-# --- 5. Sprawdzenie trudnosci (sredniej) itemow ---
+# --- 5. Statystyki opisowe itemow ---
 cat("### 5. Statystyki opisowe itemow\n\n")
 
 item_means <- colMeans(items_data, na.rm = TRUE)
 item_n <- colSums(!is.na(items_data))
+max_scores_vec <- if (!is.null(item_max_scores)) {
+  item_max_scores[names(item_means)]
+} else {
+  rep(1, length(item_means))
+}
+max_scores_vec[max_scores_vec == 0] <- 1
 
 desc_stats <- data.frame(
   Item = names(item_means),
   N = item_n,
-  Trudnosc_p = round(item_means, 3),
+  Max_score = as.integer(max_scores_vec),
+  Trudnosc_p = round(item_means / max_scores_vec, 3),
   Wariancja = round(sapply(items_data, var, na.rm = TRUE), 3)
 )
 
-# Flagi
 desc_stats$Flaga <- ""
 desc_stats$Flaga[desc_stats$Trudnosc_p < 0.05] <- "Bardzo trudny"
 desc_stats$Flaga[desc_stats$Trudnosc_p > 0.95] <- "Bardzo latwy"
 desc_stats$Flaga[desc_stats$N < 30] <- "Mala proba"
 
-cat("**Interpretacja trudnosci (p):**\n\n")
+cat("**Interpretacja trudnosci (p = srednia / max):**\n\n")
 cat("- p < 0.20: item bardzo trudny (malo osob odpowiada poprawnie)\n")
 cat("- p = 0.20-0.80: optymalny zakres trudnosci\n")
 cat("- p > 0.80: item latwy\n")
@@ -294,6 +331,17 @@ if (nrow(version_result$version_summary) > 0) {
   cat("\n**Wykryte wersje testu:**\n\n")
   print(knitr::kable(version_result$version_summary, row.names = FALSE))
   cat("\n")
+
+  # Ostrzezenie o odrzuconych osobach
+  n_unclassified <- length(version_result$unclassified_rows)
+  if (n_unclassified > 0) {
+    pct_lost <- round(n_unclassified / nrow(raw_data) * 100, 1)
+    cat(sprintf(
+      "\n**UWAGA:** %d obserwacji (%s%%) nie zostalo przypisanych do zadnej wersji ",
+      n_unclassified, pct_lost
+    ))
+    cat("i zostanie pominiete w analizach per wersja.\n\n")
+  }
 } else {
   cat("\nNie wykryto osobnych wersji testu.\n\n")
 }
@@ -304,10 +352,8 @@ if (nrow(version_result$version_summary) > 0) {
 # PRZYGOTOWANIE DANYCH DO ANALIZ
 # ============================================================================
 
-# Przechowujemy dane oryginalne z grupami
 analysis_data <- raw_data
 
-# Jesli jest zmienna grupujaca, zachowaj ja
 group_var <- params$group_var
 has_groups <- !is.null(group_var) && group_var %in% names(raw_data)
 
@@ -332,198 +378,107 @@ if (has_versions) {
 
 ## Opis metody
 
-**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy psychometrycznej. Oceniamy jakos itemow i calego testu za pomoca nastepujacych wskaznikow:
+**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy psychometrycznej. Oceniamy jakosc itemow i calego testu za pomoca nastepujacych wskaznikow:
 
 | Wskaznik | Opis | Kryterium |
 |--------------------------|------------------|----------------------------|
 | **Trudnosc (p)** | Odsetek poprawnych odpowiedzi | 0.20 - 0.80 (optymalne) |
-| **Moc roznucujaca (r.cor)** | Skorygowana korelacja item-test | \> 0.30 (dobra), \> 0.20 (akceptowalna) |
+| **Moc roznicujaca (r.cor)** | Skorygowana korelacja item-test | \> 0.30 (dobra), \> 0.20 (akceptowalna) |
 | **r.drop** | Korelacja item-reszta (item-rest) | \> 0.20 |
 | **Alpha Cronbacha** | Rzetelnosc testu (spojnosc wewn.) | \> 0.70 (akceptowalna), \> 0.80 (dobra) |
 | **Omega McDonalda** | Rzetelnosc uwzgledniajaca strukture | \> 0.70 |
 
 **Sposob interpretacji:**
 
-- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a 0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznucuja badanych i powinny byc rozwazone do usuniecia.
-- **Moc roznucujaca (r.cor):** Informuje, jak dobrze item rozroznia miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie 0 wskazuja na problem.
+- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a 0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznicuja badanych i powinny byc rozwazone do usuniecia.
+- **Moc roznicujaca (r.cor):** Informuje, jak dobrze item rozroznia miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie 0 wskazuja na problem.
 - **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
 
 ```{r ctt-analysis}
 # ============================================================================
-# ANALIZA CTT
+# ANALIZA CTT (silnik pakietu)
 # ============================================================================
 
 cat("## Wyniki CTT\n\n")
 
-# Funkcja CTT dla jednego zbioru itemow
-run_ctt_for_items <- function(data_items, label = "Caly test") {
+render_ctt_result <- function(result) {
 
-  # Usun kolumny z zerowa wariancja
-  vars <- sapply(data_items, var, na.rm = TRUE)
-  zero_var <- names(vars[vars == 0 | is.na(vars)])
-  if (length(zero_var) > 0) {
-    cat("Wykluczono", length(zero_var), "itemow z zerowa wariancja:",
-        paste(zero_var, collapse = ", "), "\n\n")
-    data_items <- data_items[, !names(data_items) %in% zero_var, drop = FALSE]
+  if (!isTRUE(result$status$ok)) {
+    cat("**Problem CTT:**", result$status$message, "\n\n")
+    return(invisible(NULL))
   }
 
-  if (ncol(data_items) < 3) {
-    cat("Za malo itemow do analizy CTT (minimum 3).\n\n")
-    return(NULL)
+  cat("### CTT:", result$label, "\n\n")
+  cat("- N osob:", result$n_persons, "\n")
+  cat("- N itemow:", result$n_items, "\n\n")
+
+  if (length(result$zero_variance_items) > 0) {
+    cat("Wykluczono", length(result$zero_variance_items),
+        "itemow z zerowa wariancja:",
+        paste(result$zero_variance_items, collapse = ", "), "\n\n")
   }
-
-  # Usun wiersze z samymi NA
-  complete_rows <- rowSums(!is.na(data_items)) > 0
-  data_items <- data_items[complete_rows, , drop = FALSE]
-
-  if (nrow(data_items) < 10) {
-    cat("Za malo obserwacji do analizy CTT (minimum 10).\n\n")
-    return(NULL)
-  }
-
-  cat("### CTT:", label, "\n\n")
-  cat("- N osob:", nrow(data_items), "\n")
-  cat("- N itemow:", ncol(data_items), "\n\n")
-
-  # Alpha Cronbacha
-  alpha_result <- tryCatch(
-    psych::alpha(data_items, check.keys = FALSE),
-    error = function(e) {
-      cat("**Blad w obliczaniu alpha:**", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (is.null(alpha_result)) return(NULL)
-
-  # Omega
-  omega_val <- tryCatch({
-    om <- psych::omega(data_items, nfactors = 1, plot = FALSE, warnings = FALSE)
-    om$omega.tot
-  }, error = function(e) NA)
 
   cat("#### Rzetelnosc\n\n")
-  cat("| Wskaznik | Wartosc | Interpretacja |\n")
-  cat("|----------|---------|---------------|\n")
-
-  alpha_val <- alpha_result$total$raw_alpha
-  alpha_interp <- ifelse(alpha_val >= 0.9, "Doskonala",
-                  ifelse(alpha_val >= 0.8, "Dobra",
-                  ifelse(alpha_val >= 0.7, "Akceptowalna",
-                  ifelse(alpha_val >= 0.6, "Wotpliwa", "Niska"))))
-  cat(sprintf("| Alpha Cronbacha | %.3f | %s |\n", alpha_val, alpha_interp))
-
-  if (!is.na(omega_val)) {
-    omega_interp <- ifelse(omega_val >= 0.8, "Dobra",
-                    ifelse(omega_val >= 0.7, "Akceptowalna", "Niska"))
-    cat(sprintf("| Omega McDonalda | %.3f | %s |\n", omega_val, omega_interp))
-  }
+  print(knitr::kable(result$reliability, row.names = FALSE))
   cat("\n")
 
-  # Statystyki itemow
   cat("#### Statystyki itemow\n\n")
-
-  item_stats <- data.frame(
-    Item = rownames(alpha_result$item.stats),
-    N = colSums(!is.na(data_items)),
-    Trudnosc_p = round(colMeans(data_items, na.rm = TRUE), 3),
-    r_cor = round(alpha_result$item.stats$r.cor, 3),
-    r_drop = round(alpha_result$item.stats$r.drop, 3),
-    Alpha_bez_itemu = round(alpha_result$alpha.drop$raw_alpha, 3)
-  )
-
-  # Flagi jakosci
-  item_stats$Ocena <- ""
-  item_stats$Ocena[item_stats$r_cor < 0] <- "USUN (ujemna korelacja)"
-  item_stats$Ocena[item_stats$r_cor >= 0 & item_stats$r_cor < 0.10] <- "Slaby"
-  item_stats$Ocena[item_stats$r_cor >= 0.10 & item_stats$r_cor < 0.20] <- "Watpliwy"
-  item_stats$Ocena[item_stats$r_cor >= 0.20 & item_stats$r_cor < 0.30] <- "Akceptowalny"
-  item_stats$Ocena[item_stats$r_cor >= 0.30] <- "Dobry"
-  item_stats$Ocena[is.na(item_stats$r_cor)] <- "Brak danych"
-  item_stats$Ocena[item_stats$Trudnosc_p < 0.05 | item_stats$Trudnosc_p > 0.95] <-
-    paste(item_stats$Ocena[item_stats$Trudnosc_p < 0.05 | item_stats$Trudnosc_p > 0.95],
-          "+ Ekstremalny")
-
-  print(knitr::kable(item_stats, row.names = FALSE))
+  print(knitr::kable(result$item_stats, row.names = FALSE))
   cat("\n")
 
-  ocena_counts <- as.data.frame(table(Ocena = item_stats$Ocena))
-  names(ocena_counts)[2] <- "Liczba_itemow"
-  print(knitr::kable(ocena_counts, row.names = FALSE))
+  print(knitr::kable(result$ocena_counts, row.names = FALSE))
   cat("\n")
 
-  # Interpretacja
-  n_bad <- sum(item_stats$r_cor < 0, na.rm = TRUE)
-  n_weak <- sum(item_stats$r_cor >= 0 & item_stats$r_cor < 0.20, na.rm = TRUE)
-  n_good <- sum(item_stats$r_cor >= 0.30, na.rm = TRUE)
+  n_bad <- sum(result$item_stats$r_cor < 0, na.rm = TRUE)
+  n_weak <- sum(result$item_stats$r_cor >= 0 & result$item_stats$r_cor < 0.20, na.rm = TRUE)
+  n_good <- sum(result$item_stats$r_cor >= 0.30, na.rm = TRUE)
 
   cat("#### Interpretacja CTT\n\n")
   cat(sprintf("- **Itemow z ujemna korelacja:** %d (do usuniecia)\n", n_bad))
-  cat(sprintf("- **Itemow slabych (r < 0.20):** %d (do rozw azenia)\n", n_weak))
-  cat(sprintf("- **Itemow dobrych (r >= 0.30):** %d z %d\n", n_good, nrow(item_stats)))
-  cat(sprintf("- **Alpha Cronbacha:** %.3f (%s)\n\n", alpha_val, alpha_interp))
+  cat(sprintf("- **Itemow slabych (r < 0.20):** %d (do rozwazenia)\n", n_weak))
+  cat(sprintf("- **Itemow dobrych (r >= 0.30):** %d z %d\n", n_good, nrow(result$item_stats)))
+  cat(sprintf("- **Alpha Cronbacha:** %.3f (%s)\n\n", result$alpha,
+              interpret_alpha(result$alpha)))
 
   if (n_bad > 0) {
     cat("**Rekomendacja:** Nastepujace itemy maja ujemna korelacje z wynikiem calkowitym\n")
     cat("i powinny zostac usuniete lub zrewidowane:\n\n")
-    bad_items <- item_stats$Item[item_stats$r_cor < 0]
+    bad_items <- result$item_stats$Item[result$item_stats$r_cor < 0]
     for (bi in bad_items) cat("-", bi, "\n")
     cat("\n")
   }
 
-  # Wykres trudnosc vs dyskryminacja
-  p <- ggplot2::ggplot(item_stats, ggplot2::aes(x = Trudnosc_p, y = r_cor)) +
-    ggplot2::geom_point(ggplot2::aes(color = Ocena), size = 3) +
-    ggplot2::geom_text(ggplot2::aes(label = Item), size = 2.5, vjust = -1, alpha = 0.7) +
-    ggplot2::geom_hline(yintercept = 0.30, linetype = "dashed", color = "green4", alpha = 0.5) +
-    ggplot2::geom_hline(yintercept = 0.20, linetype = "dashed", color = "orange", alpha = 0.5) +
-    ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", alpha = 0.5) +
-    ggplot2::annotate("text", x = 0.95, y = 0.32, label = "r = 0.30 (dobry)",
-             size = 2.5, color = "green4", hjust = 1) +
-    ggplot2::annotate("text", x = 0.95, y = 0.22, label = "r = 0.20 (akceptowalny)",
-             size = 2.5, color = "orange", hjust = 1) +
-    ggplot2::scale_x_continuous(limits = c(0, 1)) +
-    ggplot2::labs(
-      title = paste("Mapa jakosci itemow CTT -", label),
-      x = "Trudnosc (p)",
-      y = "Korelacja item-test (r.cor)",
-      color = "Ocena"
-    ) +
-    ggplot2::theme_minimal()
-
-  print(p)
-  cat("\n\n")
-
-  return(list(
-    alpha = alpha_val,
-    omega = omega_val,
-    item_stats = item_stats,
-    weak_items = item_stats$Item[item_stats$r_cor < params$correlation_threshold_negative],
-    data_items = data_items
-  ))
+  if (!is.null(result$plots$ctt_map)) {
+    print(result$plots$ctt_map)
+    cat("\n\n")
+  }
 }
 
-# Uruchom CTT
 ctt_results <- list()
 
 if (has_versions) {
-  # Oddzielnie dla kazdej wersji
   for (v in detected_versions) {
-    v_rows <- which(raw_data$detected_version == v)
+    v_rows <- which(raw_data[[detected_version_col]] == v)
     v_items <- version_items[[as.character(v)]]
     v_data <- items_data[v_rows, v_items, drop = FALSE]
+    v_max <- item_max_scores[v_items]
 
-    result <- run_ctt_for_items(v_data, label = paste("Wersja", v))
-    if (!is.null(result)) {
-      ctt_results[[as.character(v)]] <- result
-    }
+    result <- run_ctt_for_items(
+      v_data,
+      label = paste("Wersja", v),
+      item_max_scores = v_max
+    )
+    render_ctt_result(result)
+    if (isTRUE(result$status$ok)) ctt_results[[as.character(v)]] <- result
   }
 } else {
-  # Jeden test
-  result <- run_ctt_for_items(items_data, label = "Caly test")
-  if (!is.null(result)) {
-    ctt_results[["all"]] <- result
-  }
+  result <- run_ctt_for_items(
+    items_data,
+    label = "Caly test",
+    item_max_scores = item_max_scores
+  )
+  render_ctt_result(result)
+  if (isTRUE(result$status$ok)) ctt_results[["all"]] <- result
 }
 ```
 
@@ -531,7 +486,7 @@ if (has_versions) {
 
 ```{r ctt-sequential}
 # ============================================================================
-# SEKWENCYJNA ELIMINACJA ITEMOW (CTT)
+# SEKWENCYJNA ELIMINACJA ITEMOW (silnik pakietu)
 # ============================================================================
 
 cat("### Sekwencyjna eliminacja slabych itemow\n\n")
@@ -540,102 +495,39 @@ cat("1. **Krok 1:** Usun itemy z ujemna korelacja (r <= 0)\n")
 cat("2. **Krok 2:** Usun itemy z bardzo niska korelacja (r <= 0.10)\n")
 cat("3. **Krok 3:** Usun itemy z niska korelacja (r <= 0.15)\n\n")
 
-sequential_elimination <- function(data_items, label) {
+render_elimination_result <- function(result) {
 
-  if (ncol(data_items) < 3) return(NULL)
-
-  # Usun wiersze z samymi NA
-  complete_rows <- rowSums(!is.na(data_items)) > 0
-  data_items <- data_items[complete_rows, , drop = FALSE]
-
-  steps <- list()
-  current_data <- data_items
-  all_removed <- c()
-
-  thresholds <- c(0, 0.10, 0.15)
-  step_names <- c("Ujemne korelacje (r <= 0)",
-                  "Bardzo niska korelacja (r <= 0.10)",
-                  "Niska korelacja (r <= 0.15)")
-
-  for (s in seq_along(thresholds)) {
-    if (ncol(current_data) < 3) break
-
-    alpha_res <- tryCatch(psych::alpha(current_data, check.keys = FALSE),
-                          error = function(e) NULL)
-    if (is.null(alpha_res)) break
-
-    r_cors <- alpha_res$item.stats$r.cor
-    names(r_cors) <- rownames(alpha_res$item.stats)
-
-    to_remove <- names(r_cors[!is.na(r_cors) & r_cors <= thresholds[s]])
-    to_remove_na <- names(r_cors[is.na(r_cors)])
-    to_remove <- unique(c(to_remove, to_remove_na))
-
-    alpha_val <- alpha_res$total$raw_alpha
-
-    steps[[s]] <- list(
-      step = step_names[s],
-      n_items = ncol(current_data),
-      alpha = alpha_val,
-      removed = to_remove
-    )
-
-    if (length(to_remove) > 0) {
-      current_data <- current_data[, !names(current_data) %in% to_remove, drop = FALSE]
-      all_removed <- c(all_removed, to_remove)
-    }
+  if (!isTRUE(result$status$ok)) {
+    cat("**Problem:**", result$status$message, "\n\n")
+    return(invisible(NULL))
   }
 
-  # Krok koncowy
-  if (ncol(current_data) >= 3) {
-    alpha_final <- tryCatch(psych::alpha(current_data, check.keys = FALSE),
-                            error = function(e) NULL)
-    if (!is.null(alpha_final)) {
-      steps[[length(steps) + 1]] <- list(
-        step = "Po eliminacji",
-        n_items = ncol(current_data),
-        alpha = alpha_final$total$raw_alpha,
-        removed = character(0)
-      )
-    }
+  cat("####", result$label, "\n\n")
+
+  if (nrow(result$steps) > 0) {
+    display_steps <- result$steps[, c("Krok", "N_itemow", "Alpha", "Usunieto")]
+    display_steps$Usunieto[is.na(display_steps$Usunieto)] <- "-"
+    print(knitr::kable(display_steps, row.names = FALSE))
+    cat("\n")
   }
-
-  cat("####", label, "\n\n")
-  cat("| Krok | N itemow | Alpha | Usunieto |\n")
-  cat("|------|----------|-------|----------|\n")
-
-  for (st in steps) {
-    removed_str <- ifelse(length(st$removed) == 0, "-", paste(st$removed, collapse = ", "))
-    cat(sprintf("| %s | %d | %.3f | %s |\n", st$step, st$n_items, st$alpha, removed_str))
-  }
-  cat("\n")
-
-  return(list(
-    remaining_items = names(current_data),
-    removed_items = all_removed,
-    final_data = current_data
-  ))
 }
 
-# Uruchom eliminacje
 elimination_results <- list()
 
 if (has_versions) {
   for (v in detected_versions) {
-    v_rows <- which(raw_data$detected_version == v)
+    v_rows <- which(raw_data[[detected_version_col]] == v)
     v_items <- version_items[[as.character(v)]]
     v_data <- items_data[v_rows, v_items, drop = FALSE]
 
     result <- sequential_elimination(v_data, label = paste("Wersja", v))
-    if (!is.null(result)) {
-      elimination_results[[as.character(v)]] <- result
-    }
+    render_elimination_result(result)
+    if (isTRUE(result$status$ok)) elimination_results[[as.character(v)]] <- result
   }
 } else {
   result <- sequential_elimination(items_data, label = "Caly test")
-  if (!is.null(result)) {
-    elimination_results[["all"]] <- result
-  }
+  render_elimination_result(result)
+  if (isTRUE(result$status$ok)) elimination_results[["all"]] <- result
 }
 ```
 
@@ -645,441 +537,200 @@ if (has_versions) {
 
 **Teoria Odpowiedzi na Pozycje Testowe (IRT)** modeluje prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby (theta) i parametrow itemu.
 
-### Modele
+### Modele binarne
 
 | Model | Parametry | Opis |
 |----------------------|--------------------------------|-------------------|
-| **1PL (Rasch)** | trudnosc (b) | Wszystkie itemy rownie dobrze roznucuja |
-| **2PL** | dyskryminacja (a), trudnosc (b) | Itemy moga roznic sie moca roznucujaca |
+| **1PL (Rasch)** | trudnosc (b) | Wszystkie itemy rownie dobrze roznicuja |
+| **2PL** | dyskryminacja (a), trudnosc (b) | Itemy moga roznic sie moca roznicujaca |
 | **3PL** | dyskryminacja (a), trudnosc (b), zgadywanie (g) | Model uwzglednia mozliwosc odgadniecia poprawnej odpowiedzi |
 
-### Parametry itemow (IRT)
+### Modele politomiczne
+
+| Model | Parametry | Opis |
+|----------------------|--------------------------------|-------------------|
+| **Rasch-PCM** | progi trudnosci (b1, b2, ...) | Partial Credit Model z rowna dyskryminacja |
+| **2PL-GPCM** | dyskryminacja (a), progi (b1, b2, ...) | Generalized Partial Credit Model z wolna dyskryminacja |
 
 ### Parametry itemow (IRT)
 
 | Parametr | Symbol | Opis | Zakres typowy |
 |------------------|------------------|------------------|--------------------|
-| Dyskryminacja | a | Jak stromo rysnie krzywa ICC | 0.5 - 2.5 (optymalnie) |
+| Dyskryminacja | a | Jak stromo rosnie krzywa ICC | 0.5 - 2.5 (optymalnie) |
 | Trudnosc | b | Poziom theta, przy ktorym P = 0.50 | -3 do +3 |
-| Zgadywanie | g | Dolna asymptota ICC; prawdopodobienstwo poprawnej odpowiedzi przy bardzo niskiej theta | 0.00 - 0.35 |
+| Zgadywanie | g | Dolna asymptota ICC | 0.00 - 0.35 |
+| Progi | b1, b2, ... | Punkty przejscia miedzy kategoriami | -3 do +3 |
 
 ### Porownanie modeli
 
-Porownanie 1PL vs 2PL wykonujemy testem ilorazu wiarogodnosci (LRT). Jesli 2PL jest istotnie lepszy (p \< 0.05), wybieramy 2PL. Dodatkwo porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
+Porownanie modeli wykonujemy testem ilorazu wiarogodnosci (LRT). Jesli bardziej zlozony model jest istotnie lepszy (p \< 0.05), wybieramy go. Dodatkowo porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
 
 ```{r irt-analysis}
 # ============================================================================
-# ANALIZA IRT
+# ANALIZA IRT (silnik pakietu)
 # ============================================================================
 
 cat("## Wyniki IRT\n\n")
 
-run_irt_for_items <- function(data_items, label = "Caly test") {
+render_irt_result <- function(result) {
 
-  # Usun kolumny z zerowa wariancja
-  vars <- sapply(data_items, var, na.rm = TRUE)
-  data_items <- data_items[, vars > 0 & !is.na(vars), drop = FALSE]
-
-  # Usun wiersze z samymi NA
-  complete_rows <- rowSums(!is.na(data_items)) > 0
-  data_items <- data_items[complete_rows, , drop = FALSE]
-
-  if (ncol(data_items) < 3 || nrow(data_items) < 50) {
-    cat("Za malo danych do analizy IRT (min. 3 itemy, 50 osob).\n\n")
-    return(NULL)
+  if (!isTRUE(result$status$ok)) {
+    cat("**Problem IRT:**", result$status$message, "\n\n")
+    return(invisible(NULL))
   }
 
-  cat("### IRT:", label, "\n\n")
-  cat("- N osob:", nrow(data_items), "\n")
-  cat("- N itemow:", ncol(data_items), "\n\n")
-
-  n_items <- ncol(data_items)
-  model_spec <- paste0('F = 1-', n_items)
-
-  # --- Model 1PL ---
-  cat("#### Model 1PL\n\n")
-
-  model_1pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "1PL", verbose = FALSE),
-    error = function(e) {
-      cat("**Blad w dopasowaniu modelu 1PL:**", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (is.null(model_1pl)) return(NULL)
-
-  # --- Model 2PL ---
-  cat("#### Model 2PL\n\n")
-
-  model_2pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "2PL", verbose = FALSE),
-    error = function(e) {
-      cat("**Blad w dopasowaniu modelu 2PL:**", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (is.null(model_2pl)) return(NULL)
-  
-  # --- Model 3PL ---
-  cat("#### Model 3PL\n\n")
-
-  model_3pl <- tryCatch(
-  mirt::mirt(data_items, model = model_spec, itemtype = "3PL", verbose = FALSE),
-  error = function(e) {
-    cat("**Blad w dopasowaniu modelu 3PL:**", e$message, "\n\n")
-    return(NULL)
-  }
-)
+  cat("### IRT:", result$label, "\n\n")
+  cat("- N osob:", result$n_persons, "\n")
+  cat("- N itemow:", result$n_items, "\n")
+  cat("- Typ itemow:", result$item_type, "\n\n")
 
   # --- Porownanie modeli ---
-  cat("#### Porownanie modeli 1PL vs 2PL vs 3PL\n\n")
+  cat("#### Porownanie modeli\n\n")
 
-if (!is.null(model_3pl)) {
-  anova_result <- mirt::anova(model_1pl, model_2pl, model_3pl)
-} else {
-  anova_result <- mirt::anova(model_1pl, model_2pl)
-}
-
-comparison_df <- data.frame(
-  Model = rownames(anova_result),
-  AIC = round(anova_result$AIC, 1),
-  BIC = round(anova_result$BIC, 1),
-  LogLik = round(anova_result$logLik, 1),
-  df = anova_result$df
-)
-
-print(knitr::kable(comparison_df, row.names = FALSE))
-cat("\n")
-
-  # Test LRT i wybór modelu
-  cat("#### Testy ilorazu wiarogodnosci (LRT)\n\n")
-
-lrt_df <- data.frame(
-  Porownanie = c("1PL vs 2PL", "2PL vs 3PL")[seq_len(nrow(anova_result) - 1)],
-  Chi2 = round(anova_result$X2[-1], 2),
-  df = anova_result$df[-1] - anova_result$df[-nrow(anova_result)],
-  p = round(anova_result$p[-1], 4)
-)
-
-print(knitr::kable(lrt_df, row.names = FALSE))
-cat("\n")
-
-# domyslnie zaczynamy od modelu 1PL
-preferred_model <- model_1pl
-preferred_name <- "1PL"
-
-# 1PL vs 2PL
-p_val_2pl <- lrt_df$p[1]
-
-if (!is.na(p_val_2pl) && p_val_2pl < 0.05) {
-  cat("**Interpretacja:** Model 2PL jest istotnie lepszy niz 1PL (p < 0.05).\n")
-  cat("Itemy roznia sie moca roznicujaca - model 2PL jest bardziej adekwatny.\n\n")
-
-  preferred_model <- model_2pl
-  preferred_name <- "2PL"
-
-  # 2PL vs 3PL
-  if (!is.null(model_3pl) && nrow(lrt_df) >= 2) {
-
-    p_val_3pl <- lrt_df$p[2]
-
-    if (!is.na(p_val_3pl) && p_val_3pl < 0.05) {
-      cat("**Interpretacja:** Model 3PL jest istotnie lepszy niz 2PL (p < 0.05).\n")
-      cat("Uwzglednienie parametru zgadywania poprawia dopasowanie modelu.\n\n")
-
-      preferred_model <- model_3pl
-      preferred_name <- "3PL"
-    } else {
-      cat("**Interpretacja:** Model 3PL nie jest istotnie lepszy niz 2PL.\n")
-      cat("Parametr zgadywania nie poprawia dopasowania wystarczajaco.\n\n")
-    }
+  if (!is.null(result$comparison_df)) {
+    display_comp <- result$comparison_df[, c("Model", "AIC", "BIC", "LogLik", "df", "selected")]
+    print(knitr::kable(display_comp, row.names = FALSE))
+    cat("\n")
   }
-} else {
-  cat("**Interpretacja:** Model 2PL nie jest istotnie lepszy niz 1PL.\n")
-  cat("Model 1PL jest wystarczajacy - itemy sa rownowaznie roznicujace.\n\n")
-}
 
-cat("**Wybrany model:**", preferred_name, "\n\n")
+  # --- LRT ---
+  if (!is.null(result$lrt) && nrow(result$lrt) > 0) {
+    cat("#### Test ilorazu wiarogodnosci (LRT)\n\n")
+    print(knitr::kable(result$lrt, row.names = FALSE))
+    cat("\n")
+  }
+
+  cat("**Wybrany model:**", result$preferred_name, "\n\n")
 
   # --- Parametry itemow ---
-cat("#### Parametry itemow IRT\n\n")
+  cat("#### Parametry itemow IRT\n\n")
 
-make_params_table <- function(model, model_name) {
+  model_names <- c()
+  params_list <- list()
 
-  item_params <- mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items
+  if (!is.null(result$params_1pl_df) && nrow(result$params_1pl_df) > 0) {
+    params_list[["1"]] <- result$params_1pl_df
+    model_names <- c(model_names, unique(result$params_1pl_df$Model)[1])
+  }
+  if (!is.null(result$params_2pl_df) && nrow(result$params_2pl_df) > 0) {
+    params_list[["2"]] <- result$params_2pl_df
+    model_names <- c(model_names, unique(result$params_2pl_df$Model)[1])
+  }
+  if (!is.null(result$params_3pl_df) && nrow(result$params_3pl_df) > 0) {
+    params_list[["3"]] <- result$params_3pl_df
+    model_names <- c(model_names, unique(result$params_3pl_df$Model)[1])
+  }
 
-  params_df <- data.frame(
-    Item = rownames(item_params),
-    a_dyskryminacja = if ("a" %in% colnames(item_params)) round(item_params[, "a"], 3) else NA,
-    b_trudnosc = if ("b" %in% colnames(item_params)) round(item_params[, "b"], 3) else NA,
-    g_zgadywanie = if ("g" %in% colnames(item_params)) round(item_params[, "g"], 3) else NA
-  )
+  for (idx in seq_along(params_list)) {
+    cat("##### Model", model_names[idx], "\n\n")
+    print(knitr::kable(params_list[[idx]], row.names = FALSE))
+    cat("\n")
+  }
 
-  params_df$Ocena_a <- ""
-  params_df$Ocena_a[params_df$a_dyskryminacja < 0.20] <- "Bardzo slaby"
-  params_df$Ocena_a[params_df$a_dyskryminacja >= 0.20 & params_df$a_dyskryminacja < 0.50] <- "Slaby"
-  params_df$Ocena_a[params_df$a_dyskryminacja >= 0.50 & params_df$a_dyskryminacja < 0.80] <- "Umiarkowany"
-  params_df$Ocena_a[params_df$a_dyskryminacja >= 0.80 & params_df$a_dyskryminacja < 1.50] <- "Dobry"
-  params_df$Ocena_a[params_df$a_dyskryminacja >= 1.50] <- "Bardzo dobry"
+  cat("**Do dalszych wykresow i analiz uzyto modelu:**", result$preferred_name, "\n\n")
 
-  cat("##### Model", model_name, "\n\n")
-  print(knitr::kable(params_df, row.names = FALSE))
-  cat("\n")
+  # --- Interpretacja parametrow ---
+  cat("**Interpretacja parametrow IRT:**\n\n")
+  cat("- **Dyskryminacja (a):** Im wieksza, tym lepiej item rozroznia osoby o roznych zdolnosciach.\n")
+  cat("  - a < 0.50: item slabo roznicuje\n")
+  cat("  - a = 0.50-1.50: umiarkowana do dobrej dyskryminacji\n")
+  cat("  - a > 1.50: bardzo dobra dyskryminacja\n")
+  cat("  - a < 0: item odwrotnie skorelowany z cecha - powazny problem\n\n")
 
-  return(params_df)
-}
+  cat("- **Trudnosc (b):** Punkt na skali theta, gdzie prawdopodobienstwo poprawnej odpowiedzi wynosi ok. 0.50.\n")
+  cat("  - b < -2: item bardzo latwy\n")
+  cat("  - b = -1 do +1: umiarkowana trudnosc\n")
+  cat("  - b > +2: item bardzo trudny\n\n")
 
-params_1pl_df <- make_params_table(model_1pl, "1PL")
-params_2pl_df <- make_params_table(model_2pl, "2PL")
+  if (result$item_type %in% c("polytomous", "mixed")) {
+    cat("- **Progi (b1, b2, ...):** Punkty na skali theta, gdzie prawdopodobienstwo przejscia do wyzszej kategorii wynosi 0.50.\n\n")
+  }
 
-if (!is.null(model_3pl)) {
-  params_3pl_df <- make_params_table(model_3pl, "3PL")
-} else {
-  params_3pl_df <- NULL
-}
+  # --- Wykresy IRT ---
+  cat("#### Wykresy IRT dla wybranego modelu:", result$preferred_name, "\n\n")
 
-cat("**Do dalszych wykresow i analiz uzyto modelu:**", preferred_name, "\n\n")
-
-cat("**Interpretacja parametrow IRT:**\n\n")
-cat("- **Dyskryminacja (a):** Im wieksza, tym lepiej item rozroznia osoby o roznych zdolnosciach.\n")
-cat("  - a < 0.50: item slabo roznicuje\n")
-cat("  - a = 0.50-1.50: umiarkowana do dobrej dyskryminacji\n")
-cat("  - a > 1.50: bardzo dobra dyskryminacja\n")
-cat("  - a < 0: item odwrotnie skorelowany z cecha - powazny problem\n\n")
-
-cat("- **Trudnosc (b):** Punkt na skali theta, gdzie prawdopodobienstwo poprawnej odpowiedzi wynosi ok. 0.50.\n")
-cat("  - b < -2: item bardzo latwy\n")
-cat("  - b = -1 do +1: umiarkowana trudnosc\n")
-cat("  - b > +2: item bardzo trudny\n\n")
-
-if (!is.null(model_3pl)) {
-  cat("- **Zgadywanie (g):** Dolna asymptota krzywej ICC, czyli prawdopodobienstwo poprawnej odpowiedzi przy bardzo niskim poziomie theta.\n")
-  cat("  - g < 0.10: niski efekt zgadywania\n")
-  cat("  - g = 0.10-0.25: typowy lub umiarkowany efekt zgadywania\n")
-  cat("  - g > 0.25: podwyzszone prawdopodobienstwo zgadywania\n")
-  cat("  - g > 0.35: mozliwy problem z dystraktorami lub konstrukcja itemu\n\n")
-}
-
-# --- Wykresy IRT ---
-
-cat("#### Wykresy IRT dla wybranego modelu:", preferred_name, "\n\n")
-
-# Najpierw liczymy theta, bo bedzie potrzebna do kilku wykresow
-theta_scores <- mirt::fscores(preferred_model, method = "EAP")
-theta_vals <- theta_scores[, 1]
-
-# Test Information Function
-cat("##### Funkcja informacyjna testu (TIF)\n\n")
-cat("Funkcja informacyjna pokazuje, w jakim zakresie zdolnosci (theta) test\n")
-cat("dostarcza najwiecej informacji (= najdokladniejszy pomiar).\n\n")
-
-print(mirt::plot(
-  preferred_model,
-  type = "info",
-  facet_items = FALSE,
-  main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
-))
-
-cat("\n\n**Interpretacja TIF:** Szczyty wskazuja zakres theta, gdzie test najlepiej\n")
-cat("mierzy. Platforma (plaski szczyt) = rowny pomiar w szerokim zakresie.\n")
-cat("Ostry szczyt = precyzyjny pomiar w waskim zakresie.\n\n")
-
-# ICC
-cat("##### Krzywe charakterystyczne itemow (ICC)\n\n")
-cat("ICC pokazuja prawdopodobienstwo poprawnej odpowiedzi w funkcji zdolnosci.\n")
-cat("Krzywe narysowano dla modelu wybranego w porownaniu modeli:", preferred_name, ".\n\n")
-
-n_per_plot <- min(ncol(data_items), 12)
-
-for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
-  end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
-
-  print(mirt::plot(
-    preferred_model,
-    type = "trace",
-    which.items = start_idx:end_idx,
-    main = paste("ICC -", label, "-", preferred_name, "- itemy", start_idx, "do", end_idx),
-    facet_items = TRUE,
-    auto.key = list(points = FALSE, lines = TRUE)
-  ))
-}
-
-cat("\n\n")
-
-# Empiryczne dopasowanie ICC
-cat("##### Empiryczne dopasowanie ICC do danych\n\n")
-cat("Punkty przedstawiaja empiryczne prawdopodobienstwa poprawnej odpowiedzi\n")
-cat("w grupach osob o podobnym poziomie theta, a linia pokazuje przewidywania modelu IRT.\n")
-cat("Duze odchylenia punktow od krzywej moga wskazywac na niedopasowanie itemu.\n\n")
-
-breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
-
-if (length(breaks_theta) < 3) {
-
-  cat("Nie mozna utworzyc grup theta - zbyt malo zroznicowane wyniki theta.\n\n")
-
-} else {
-
-  theta_groups <- cut(
-    theta_vals,
-    breaks = breaks_theta,
-    include.lowest = TRUE
-  )
-
-  empirical_data <- data.frame(
-    theta = theta_vals,
-    group = theta_groups
-  )
-
-  n_per_plot_emp <- min(ncol(data_items), 6)
-
-  for (start_idx in seq(1, ncol(data_items), by = n_per_plot_emp)) {
-
-    end_idx <- min(start_idx + n_per_plot_emp - 1, ncol(data_items))
-
-    graphics::par(mfrow = c(2, 3))
-
-    for (i in start_idx:end_idx) {
-
-      item_name <- colnames(data_items)[i]
-      item_resp <- data_items[, i]
-
-      tmp <- empirical_data
-      tmp$response <- item_resp
-
-      emp <- stats::aggregate(
-        cbind(theta, response) ~ group,
-        data = tmp,
-        FUN = mean,
-        na.rm = TRUE
-      )
-
-      theta_grid <- seq(min(theta_vals), max(theta_vals), length.out = 200)
-
-      item_obj <- mirt::extract.item(preferred_model, i)
-      prob <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))[, 2]
-
-      graphics::plot(
-        theta_grid,
-        prob,
-        type = "l",
-        lwd = 2,
-        ylim = c(0, 1),
-        xlab = expression(theta),
-        ylab = "P(poprawnej)",
-        main = item_name
-      )
-
-      graphics::points(
-        emp$theta,
-        emp$response,
-        pch = 19,
-        col = "red"
-      )
+  if (!is.null(result$plots)) {
+    if (!is.null(result$plots$tif)) {
+      cat("##### Funkcja informacyjna testu (TIF)\n\n")
+      print(result$plots$tif)
+      cat("\n\n")
     }
 
-    graphics::par(mfrow = c(1, 1))
+    if (!is.null(result$plots$icc)) {
+      cat("##### Krzywe charakterystyczne itemow (ICC)\n\n")
+      for (p in result$plots$icc) {
+        print(p)
+      }
+      cat("\n\n")
+    }
+
+    if (!is.null(result$plots$empirical_icc)) {
+      cat("##### Empiryczne dopasowanie ICC do danych\n\n")
+      for (p in result$plots$empirical_icc) {
+        print(p)
+      }
+      cat("\n\n")
+    }
+
+    if (!is.null(result$plots$theta_dist)) {
+      cat("##### Rozklad zdolnosci osob (theta)\n\n")
+      print(result$plots$theta_dist)
+      cat("\n\n")
+    }
   }
 }
 
-cat("\n\n")
-
-# Person ability distribution
-cat("##### Rozklad zdolnosci osob (theta)\n\n")
-
-graphics::hist(
-  theta_vals,
-  breaks = 30,
-  col = "steelblue",
-  border = "white",
-  main = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
-  xlab = "Zdolnosc (theta)",
-  ylab = "Liczba osob"
-)
-
-graphics::abline(v = mean(theta_vals), col = "red", lwd = 2)
-
-graphics::legend(
-  "topright",
-  legend = paste(
-    "M =", round(mean(theta_vals), 2),
-    ", SD =", round(stats::sd(theta_vals), 2)
-  ),
-  col = "red",
-  lwd = 2
-)
-
-cat("\n\n")
-
-cat("**Interpretacja:** Rozklad theta powinien byc zblizony do normalnego.\n")
-cat("Jesli rozklad jest wyraznie skosny, test nie jest optymalnie dobrany\n")
-cat("do badanej populacji (za latwy lub za trudny).\n\n")
-
-return(list(
-  model_1pl = model_1pl,
-  model_2pl = model_2pl,
-  model_3pl = model_3pl,
-  preferred_model = preferred_model,
-  preferred_name = preferred_name,
-  params_1pl_df = params_1pl_df,
-  params_2pl_df = params_2pl_df,
-  params_3pl_df = params_3pl_df,
-  theta_scores = theta_scores,
-  anova = anova_result,
-  data_items = data_items
-))
-}
-
-# Uruchom IRT
 irt_results <- list()
 
 if (has_versions) {
 
   for (v in detected_versions) {
 
-    v_rows <- which(raw_data$detected_version == v)
+    v_rows <- which(raw_data[[detected_version_col]] == v)
     v_items <- version_items[[as.character(v)]]
 
-    # Uzyj itemow po eliminacji CTT jesli dostepne
     if (!is.null(elimination_results[[as.character(v)]])) {
       v_items_clean <- elimination_results[[as.character(v)]]$remaining_items
     } else {
       v_items_clean <- v_items
     }
 
-    # Zabezpieczenie: zostaw tylko itemy faktycznie obecne w danych
     v_items_clean <- intersect(v_items_clean, colnames(items_data))
-
     v_data <- items_data[v_rows, v_items_clean, drop = FALSE]
+    v_max <- item_max_scores[v_items_clean]
 
-    result <- run_irt_for_items(v_data, label = paste("Wersja", v))
+    result <- run_irt_for_items(
+      v_data,
+      label = paste("Wersja", v),
+      item_type = item_type,
+      item_max_scores = v_max
+    )
 
-    if (!is.null(result)) {
-      irt_results[[as.character(v)]] <- result
-    }
+    render_irt_result(result)
+    if (isTRUE(result$status$ok)) irt_results[[as.character(v)]] <- result
   }
 
 } else {
 
-  # Uzyj itemow po eliminacji CTT jesli dostepne
   if (!is.null(elimination_results[["all"]])) {
     clean_items <- elimination_results[["all"]]$remaining_items
-
-    # Zabezpieczenie: zostaw tylko itemy faktycznie obecne w danych
     clean_items <- intersect(clean_items, colnames(items_data))
-
     clean_data <- items_data[, clean_items, drop = FALSE]
+    clean_max <- item_max_scores[clean_items]
   } else {
     clean_data <- items_data
+    clean_max <- item_max_scores
   }
 
-  result <- run_irt_for_items(clean_data, label = "Caly test")
+  result <- run_irt_for_items(
+    clean_data,
+    label = "Caly test",
+    item_type = item_type,
+    item_max_scores = clean_max
+  )
 
-  if (!is.null(result)) {
-    irt_results[["all"]] <- result
-  }
+  render_irt_result(result)
+  if (isTRUE(result$status$ok)) irt_results[["all"]] <- result
 }
 ```
 
@@ -1094,7 +745,7 @@ if (has_versions) {
 | Statystyka | Opis | Kryterium |
 |----------------------------|------------------|--------------------------|
 | **PV-Q1**\* | Statystyka Chalmers & Ng (2017) - bootstrap | p \> 0.05 = dobre dopasowanie |
-| **Infit MNSQ** | Srednia kwadratow reszt wazone informacja | 0.70 - 1.30 (akceptowalne) |
+| **Infit MNSQ** | Srednia kwadratow reszt wazona informacja | 0.70 - 1.30 (akceptowalne) |
 | **Outfit MNSQ** | Srednia kwadratow reszt niewazona | 0.70 - 1.30 (akceptowalne) |
 | **S-X2** | Statystyka Orlando-Thissen | p \> 0.05 = dobre dopasowanie |
 
@@ -1107,172 +758,56 @@ if (has_versions) {
 
 ```{r item-fit}
 # ============================================================================
-# ITEM FIT
+# ITEM FIT (silnik pakietu)
 # ============================================================================
 
 cat("## Wyniki Item Fit\n\n")
 
-run_item_fit <- function(irt_result, label = "Caly test") {
+render_item_fit_result <- function(result) {
 
-  if (is.null(irt_result)) {
-    cat("Brak modelu IRT - pominieto item fit.\n\n")
-    return(NULL)
+  if (!isTRUE(result$status$ok)) {
+    cat("**Problem item fit:**", result$status$message, "\n\n")
+    return(invisible(NULL))
   }
 
-  model <- irt_result$preferred_model
-  cat("### Item Fit:", label, "\n\n")
+  cat("### Item Fit:", result$label, "\n\n")
 
-  # --- S-X2 (Orlando-Thissen) ---
-  cat("#### Statystyka S-X2 (Orlando-Thissen)\n\n")
-
-  sx2_result <- tryCatch(
-    mirt::itemfit(model, fit_stats = "S_X2"),
-    error = function(e) {
-      cat("Blad w obliczaniu S-X2:", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (!is.null(sx2_result)) {
-    sx2_df <- data.frame(
-      Item = rownames(sx2_result),
-      S_X2 = round(sx2_result$S_X2, 3),
-      df = sx2_result$df.S_X2,
-      p = round(sx2_result$p.S_X2, 4)
-    )
-    sx2_df$Dopasowanie <- ifelse(sx2_df$p >= 0.05, "OK",
-                          ifelse(sx2_df$p >= 0.01, "Watpliwe", "Zle"))
-
-    print(knitr::kable(sx2_df, row.names = FALSE))
+  # S-X2
+  if (isTRUE(result$sx2_status$ok) && !is.null(result$sx2_df)) {
+    cat("#### Statystyka S-X2 (Orlando-Thissen)\n\n")
+    print(knitr::kable(result$sx2_df, row.names = FALSE))
     cat("\n")
 
-    n_misfit_sx2 <- sum(sx2_df$p < 0.05, na.rm = TRUE)
+    n_misfit <- sum(result$sx2_df$p < 0.05, na.rm = TRUE)
     cat(sprintf("**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).\n\n",
-                n_misfit_sx2, nrow(sx2_df)))
+                n_misfit, nrow(result$sx2_df)))
+  } else if (!is.null(result$sx2_status$message)) {
+    cat("#### S-X2\n\n")
+    cat("**Uwaga:**", result$sx2_status$message, "\n\n")
   }
 
-  # --- Infit / Outfit ---
-  cat("#### Statystyki Infit i Outfit\n\n")
-
-  infit_result <- tryCatch(
-    mirt::itemfit(model, fit_stats = "infit"),
-    error = function(e) {
-      cat("Blad w obliczaniu infit:", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (!is.null(infit_result)) {
-    infit_df <- data.frame(
-      Item = rownames(infit_result),
-      Infit_MNSQ = round(infit_result$infit, 3),
-      Outfit_MNSQ = round(infit_result$outfit, 3)
-    )
-
-    infit_df$Infit_ocena <- ifelse(
-      infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30, "OK",
-      ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie"))
-
-    infit_df$Outfit_ocena <- ifelse(
-      infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30, "OK",
-      ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie"))
-
-    print(knitr::kable(infit_df, row.names = FALSE))
+  # Infit / Outfit
+  if (isTRUE(result$infit_status$ok) && !is.null(result$infit_df)) {
+    cat("#### Statystyki Infit i Outfit\n\n")
+    print(knitr::kable(result$infit_df, row.names = FALSE))
     cat("\n")
 
-    n_infit_bad <- sum(infit_df$Infit_MNSQ > 1.30 | infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
-    n_outfit_bad <- sum(infit_df$Outfit_MNSQ > 1.30 | infit_df$Outfit_MNSQ < 0.70, na.rm = TRUE)
+    n_infit_bad <- sum(result$infit_df$Infit_MNSQ > 1.30 | result$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
+    n_outfit_bad <- sum(result$infit_df$Outfit_MNSQ > 1.30 | result$infit_df$Outfit_MNSQ < 0.70, na.rm = TRUE)
 
     cat(sprintf("**Podsumowanie Infit:** %d z %d itemow poza zakresem 0.70-1.30\n",
-                n_infit_bad, nrow(infit_df)))
+                n_infit_bad, nrow(result$infit_df)))
     cat(sprintf("**Podsumowanie Outfit:** %d z %d itemow poza zakresem 0.70-1.30\n\n",
-                n_outfit_bad, nrow(infit_df)))
+                n_outfit_bad, nrow(result$infit_df)))
+  } else if (!is.null(result$infit_status) && !isTRUE(result$infit_status$ok)) {
+    cat("#### Infit / Outfit\n\n")
+    cat("**Uwaga:**", result$infit_status$message, "\n\n")
   }
 
-  # --- PV-Q1* (jesli proba nie za duza i malo itemow) ---
-n_obs <- nrow(irt_result$data_items)
-n_items_fit <- ncol(irt_result$data_items)
-
-# PV-Q1* jest bardzo wolny - ograniczamy do malych prob
-#if (n_obs <= 500 && n_items_fit <= 30) {
-
-# PV-Q1* tymczasowo wylaczone na czas testow
-if (FALSE) {
-  cat("#### Statystyka PV-Q1* (Chalmers & Ng, 2017)\n\n")
-  cat("**Uwaga:** Ta statystyka wymaga bootstrapu i moze trwac dluzej.\n\n")
-
-  pvq1_result <- tryCatch(
-    mirt::itemfit(model, fit_stats = "PV_Q1*"),
-    error = function(e) {
-      cat("Blad w obliczaniu PV-Q1*:", e$message, "\n\n")
-      return(NULL)
-    }
-  )
-
-  if (!is.null(pvq1_result)) {
-
-    pv_col <- grep("PV", names(pvq1_result), value = TRUE)[1]
-    p_col  <- grep("^p", names(pvq1_result), value = TRUE)[1]
-
-    if (is.na(pv_col) || is.na(p_col)) {
-      cat("Nie znaleziono kolumn PV-Q1* w wyniku - pominieto tabele PV-Q1*.\n\n")
-    } else {
-
-      pvq1_df <- data.frame(
-        Item = rownames(pvq1_result),
-        PV_Q1_star = round(pvq1_result[[pv_col]], 3),
-        p = round(pvq1_result[[p_col]], 4)
-      )
-
-      pvq1_df$Dopasowanie <- ifelse(
-        pvq1_df$p >= 0.05, "OK",
-        ifelse(pvq1_df$p >= 0.01, "Watpliwe", "Zle")
-      )
-
-      print(knitr::kable(pvq1_df, row.names = FALSE))
-      cat("\n")
-
-      n_misfit <- sum(pvq1_df$p < 0.05, na.rm = TRUE)
-      cat(sprintf(
-        "**Podsumowanie PV-Q1*:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).\n\n",
-        n_misfit, nrow(pvq1_df)
-      ))
-    }
-  }
-} else {
-  cat(sprintf(
-    "#### PV-Q1* pominieto (n = %d, liczba itemow = %d; bootstrap bylby zbyt wolny)\n\n",
-    n_obs, n_items_fit
-  ))
-}
-
-  # --- Zbiorczy wykres item fit ---
-  cat("#### Wykres zbiorczy item fit\n\n")
-
-  if (!is.null(infit_result) && !is.null(sx2_result)) {
-    fit_plot_data <- data.frame(
-      Item = rownames(infit_result),
-      Infit = infit_result$infit,
-      Outfit = infit_result$outfit,
-      S_X2_p = sx2_result$p.S_X2
-    )
-
-    p_fit <- ggplot2::ggplot(fit_plot_data, ggplot2::aes(x = Infit, y = Outfit)) +
-      ggplot2::geom_point(ggplot2::aes(color = S_X2_p < 0.05), size = 3) +
-      ggplot2::geom_text(ggplot2::aes(label = Item), size = 2, vjust = -1, alpha = 0.6) +
-      ggplot2::geom_hline(yintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-      ggplot2::geom_vline(xintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-      ggplot2::scale_color_manual(values = c("FALSE" = "steelblue", "TRUE" = "red"),
-                         labels = c("S-X2 OK", "S-X2 niedopasowanie"),
-                         name = "Dopasowanie") +
-      ggplot2::labs(
-        title = paste("Mapa dopasowania itemow -", label),
-        x = "Infit MNSQ",
-        y = "Outfit MNSQ"
-      ) +
-      ggplot2::theme_minimal()
-
-    print(p_fit)
+  # Wykres zbiorczy
+  if (!is.null(result$plots$fit_map)) {
+    cat("#### Wykres zbiorczy item fit\n\n")
+    print(result$plots$fit_map)
     cat("\n\n")
   }
 
@@ -1280,29 +815,18 @@ if (FALSE) {
   cat("- Itemy z dobrym dopasowaniem (S-X2 p > 0.05 ORAZ infit/outfit w zakresie 0.70-1.30)\n")
   cat("  sa dobrze opisywane przez model IRT.\n")
   cat("- **Niedodopasowanie (misfit):** Infit/Outfit > 1.30 oznacza, ze item jest mniej\n")
-  cat("  przewidywalny niz zaklada model. Czesto dotyczy itemow wielowymiarowych lub\n")
-  cat("  z podwojnym kluczem.\n")
+  cat("  przewidywalny niz zaklada model.\n")
   cat("- **Przeddopasowanie (overfit):** Infit/Outfit < 0.70 moze wskazywac na\n")
-  cat("  zaleznos lokalna miedzy itemami (np. item daje wskazowke do innego).\n")
-  cat("- Nalezy rownoczesnie sprawdzic ICC (wykresy w sekcji IRT) - odchylenia od\n")
-  cat("  teoretycznej krzywej wskazuja, gdzie item nie dziala poprawnie.\n\n")
-
-  return(list(
-    sx2 = sx2_result,
-    infit = infit_result,
-    pvq1 = if (exists("pvq1_result")) pvq1_result else NULL
-  ))
+  cat("  zaleznosc lokalna miedzy itemami.\n\n")
 }
 
-# Uruchom item fit
 fit_results <- list()
 
 for (name in names(irt_results)) {
   label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
   result <- run_item_fit(irt_results[[name]], label = label)
-  if (!is.null(result)) {
-    fit_results[[name]] <- result
-  }
+  render_item_fit_result(result)
+  if (isTRUE(result$status$ok)) fit_results[[name]] <- result
 }
 ```
 
@@ -1314,14 +838,12 @@ for (name in names(irt_results)) {
 
 **Czym jest DIF?** Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest "nieuczciwy" (biased) - faworyzuje jedna grupe.
 
-### Metoda: Regresja logistyczna
+### Metoda
 
-Stosujemy podejscie regresji logistycznej (Swaminathan & Rogers, 1990):
+Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt.
+Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
 
-1.  **Uniform DIF:** Roznice stale na calym zakresie theta (rozna trudnosc)
-2.  **Non-uniform DIF:** Roznice zmieniaja sie w zaleznosci od theta (rozna dyskryminacja)
-
-### Klasyfikacja ETS
+### Klasyfikacja ETS (itemy binarne)
 
 | Kategoria | Kryterium                 | Interpretacja                 |
 |-----------|---------------------------|-------------------------------|
@@ -1329,234 +851,96 @@ Stosujemy podejscie regresji logistycznej (Swaminathan & Rogers, 1990):
 | **B**     | 1.0 \<= abs(delta) \< 1.5 | Umiarkowane DIF - monitorowac |
 | **C**     | abs(delta) \>= 1.5        | Duze DIF - rozwazyc usuniecie |
 
-### Sposob interpretacji
-
-- **Kategoria A:** Item dziala jednakowo w obu grupach. Brak podstaw do interwencji.
-- **Kategoria B:** Umiarkowane roznice. Nalezy zbadac tresc itemu pod katem potencjalnych zrodel obciazenia. Jesli nie ma merytorycznych podstaw, mozna zostawic.
-- **Kategoria C:** Duze roznice miedzy grupami. Item powinien zostac zrewidowany lub usuniety, chyba ze roznica ma uzasadnienie merytoryczne.
-
 ```{r dif-analysis}
 # ============================================================================
-# ANALIZA DIF
+# ANALIZA DIF (silnik pakietu)
 # ============================================================================
 
 cat("## Wyniki DIF\n\n")
 
-dif_group_var <- params$dif_group_var
+dif_all <- run_dif_analysis(
+  raw_data = raw_data,
+  items_data = items_data,
+  irt_results = irt_results,
+  dif_group_var = params$dif_group_var,
+  group_var = params$group_var,
+  has_groups = has_groups,
+  has_versions = has_versions,
+  detected_version_col = detected_version_col
+)
 
-# Jesli nie podano zmiennej DIF, sprawdz czy jest group_var
-if (is.null(dif_group_var) && has_groups) {
-  dif_group_var <- group_var
-}
-
-if (is.null(dif_group_var) || !dif_group_var %in% names(raw_data)) {
-  cat("**Analiza DIF pominieta** - nie podano zmiennej grupujacej (parametr `dif_group_var`).\n\n")
-  cat("Aby przeprowadzic analize DIF, podaj nazwe zmiennej grupujacej, np.:\n\n")
-  cat("```r\n")
-  cat("params = list(dif_group_var = \"grupa\")\n")
-  cat("```\n\n")
+if (!isTRUE(dif_all$status$ok)) {
+  cat("**Analiza DIF pominieta:**", dif_all$status$message, "\n\n")
 } else {
 
-  dif_groups <- raw_data[[dif_group_var]]
-  unique_groups <- sort(unique(dif_groups[!is.na(dif_groups)]))
+  cat("**Zmienna grupujaca DIF:**", dif_all$dif_group_var, "\n")
+  cat("**Grupy:**", paste(dif_all$groups, collapse = " vs "), "\n\n")
 
-  cat("**Zmienna grupujaca DIF:**", dif_group_var, "\n")
-  cat("**Grupy:**", paste(unique_groups, collapse = " vs "), "\n\n")
+  dif_results <- dif_all$results
 
-  if (length(unique_groups) < 2) {
-    cat("**BLAD:** Zmienna grupujaca ma mniej niz 2 unikalne wartosci.\n\n")
-  } else {
+  for (pair_name in names(dif_results)) {
+    r <- dif_results[[pair_name]]
 
-    # Funkcja DIF dla pary grup
-    run_dif_pair <- function(data_items, group_vec, theta_vec,
-                              group_ref, group_focal, label) {
+    if (!isTRUE(r$status$ok)) {
+      cat("####", r$label, "\n\n")
+      cat("**Problem:**", r$status$message, "\n\n")
+      next
+    }
 
-      # Filtruj do dwoch grup
-      mask <- group_vec %in% c(group_ref, group_focal) & !is.na(group_vec)
-      d_items <- data_items[mask, , drop = FALSE]
-      d_group <- group_vec[mask]
-      d_theta <- theta_vec[mask]
+    cat("####", r$label, "\n\n")
+    cat("- Grupa referencyjna:", r$group_ref, "(n =", r$n_ref, ")\n")
+    cat("- Grupa fokalna:", r$group_focal, "(n =", r$n_focal, ")\n")
+    cat("- Metoda:", r$method, "\n")
+    cat("- Itemy:", r$n_items, "\n\n")
 
-      # Usun itemy z zerowawariancja w obu grupach
-      good_items <- sapply(d_items, function(x) {
-        stats::var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
-      })
-      d_items <- d_items[, good_items, drop = FALSE]
-
-      if (ncol(d_items) < 3) {
-        cat("Za malo wspolnych itemow do analizy DIF.\n\n")
-        return(NULL)
-      }
-
-      # Usun wiersze z samymi NA
-      complete <- rowSums(!is.na(d_items)) > 0
-      d_items <- d_items[complete, ]
-      d_group <- d_group[complete]
-      d_theta <- d_theta[complete]
-
-      # Koduj grupy jako 0/1
-      group_numeric <- ifelse(d_group == group_ref, 0, 1)
-
-      cat("####", label, "\n\n")
-      cat("- Grupa referencyjna (0):", group_ref, "(n =", sum(group_numeric == 0), ")\n")
-      cat("- Grupa fokalna (1):", group_focal, "(n =", sum(group_numeric == 1), ")\n")
-      cat("- Itemy:", ncol(d_items), "\n\n")
-
-      # Analiza DIF - regresja logistyczna z pakietu sirt
-      dif_result <- tryCatch(
-        sirt::dif.logistic.regression(
-          dat = d_items,
-          score = d_theta,
-          group = group_numeric
-        ),
-        error = function(e) {
-          cat("**Blad w analizie DIF:**", e$message, "\n\n")
-          return(NULL)
-        }
-      )
-
-      if (is.null(dif_result)) return(NULL)
-
-      # Wyniki
-      dif_df <- data.frame(
-        Item = dif_result$item,
-        pdiff_adj = round(dif_result$pdiff.adj, 4),
-        ETS = dif_result$DIF.ETS
-      )
-
-      # Dodaj kolorowanie ETS
-      dif_df$Interpretacja <- ""
-      dif_df$Interpretacja[dif_df$ETS == "A"] <- "Pomijalne DIF"
-      dif_df$Interpretacja[dif_df$ETS == "B"] <- "Umiarkowane DIF"
-      dif_df$Interpretacja[dif_df$ETS == "C"] <- "Duze DIF"
-
-      print(knitr::kable(dif_df, row.names = FALSE))
+    # Tabela wynikow DIF
+    if (!is.null(r$dif_df) && nrow(r$dif_df) > 0) {
+      print(knitr::kable(r$dif_df, row.names = FALSE))
       cat("\n")
 
-      # Podsumowanie
-      n_a <- sum(dif_df$ETS == "A", na.rm = TRUE)
-      n_b <- sum(dif_df$ETS == "B", na.rm = TRUE)
-      n_c <- sum(dif_df$ETS == "C", na.rm = TRUE)
+      # Podsumowanie: binarne (ETS) vs politomiczne (p_holm)
+      if ("ETS" %in% names(r$dif_df)) {
+        n_a <- sum(grepl("^A", r$dif_df$ETS), na.rm = TRUE)
+        n_b <- sum(grepl("^B", r$dif_df$ETS), na.rm = TRUE)
+        n_c <- sum(grepl("^C", r$dif_df$ETS), na.rm = TRUE)
 
-      cat(sprintf("**Podsumowanie:** A = %d, B = %d, C = %d (z %d itemow)\n\n",
-                  n_a, n_b, n_c, nrow(dif_df)))
+        cat(sprintf("**Podsumowanie ETS:** A = %d, B = %d, C = %d (z %d itemow)\n\n",
+                    n_a, n_b, n_c, nrow(r$dif_df)))
 
-      if (n_c > 0) {
-        cat("**UWAGA:** Nastepujace itemy wykazuja duze DIF (kategoria C):\n\n")
-        c_items <- dif_df$Item[dif_df$ETS == "C"]
-        for (ci in c_items) {
-          pdiff <- dif_df$pdiff_adj[dif_df$Item == ci]
-          direction <- ifelse(pdiff > 0,
-                              paste("latwiejszy dla grupy", group_focal),
-                              paste("latwiejszy dla grupy", group_ref))
-          cat(sprintf("- **%s** (pdiff = %.3f): %s\n", ci, pdiff, direction))
-        }
-        cat("\n")
-      }
-
-      # Wykres DIF
-      if (nrow(dif_df) > 0) {
-        dif_df$pdiff_for_plot <- dif_result$pdiff.adj
-
-        p_dif <- ggplot2::ggplot(dif_df, ggplot2::aes(x = stats::reorder(Item, pdiff_for_plot),
-                                     y = pdiff_for_plot, fill = ETS)) +
-          ggplot2::geom_col() +
-          ggplot2::geom_hline(yintercept = c(-1.5, -1, 1, 1.5),
-                     linetype = "dashed", color = c("red", "orange", "orange", "red"),
-                     alpha = 0.5) +
-          ggplot2::scale_fill_manual(values = c("A" = "green4", "B" = "orange", "C" = "red")) +
-          ggplot2::coord_flip() +
-          ggplot2::labs(
-            title = paste("DIF:", label),
-            x = "Item",
-            y = "Adjusted p-difference",
-            fill = "Klasyfikacja ETS"
-          ) +
-          ggplot2::theme_minimal()
-
-        print(p_dif)
-        cat("\n\n")
-      }
-
-      return(dif_df)
-    }
-
-    # Uruchom DIF dla kazdej pary
-    dif_results <- list()
-
-    if (has_versions) {
-      # DIF oddzielnie dla kazdej wersji
-      for (v in names(irt_results)) {
-        label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
-        v_irt <- irt_results[[v]]
-        v_data <- v_irt$data_items
-        v_theta <- v_irt$theta_scores[, 1]
-
-        # Filtruj do odpowiedniej wersji
-        if (v != "all") {
-          v_rows <- which(raw_data$detected_version == as.numeric(v))
-          v_kept <- v_rows %in% as.integer(rownames(v_data))
-          v_group <- dif_groups[v_rows][v_kept]
-        } else {
-          v_complete <- rowSums(!is.na(items_data[, colnames(v_data), drop = FALSE])) > 0
-          v_group <- dif_groups[v_complete]
-        }
-
-        # Sprawdz czy obie grupy sa w tej wersji
-        v_unique <- sort(unique(v_group[!is.na(v_group)]))
-
-        if (length(v_unique) >= 2) {
-          # Dla kazdej pary grup
-          for (i in 1:(length(v_unique) - 1)) {
-            for (j in (i + 1):length(v_unique)) {
-              pair_label <- paste(v_unique[i], "vs", v_unique[j], label_v)
-              result <- run_dif_pair(v_data, v_group, v_theta,
-                                     v_unique[i], v_unique[j], pair_label)
-              if (!is.null(result)) {
-                dif_results[[pair_label]] <- result
-              }
-            }
+        if (n_c > 0) {
+          cat("**UWAGA:** Nastepujace itemy wykazuja duze DIF (kategoria C):\n\n")
+          c_items <- r$dif_df$Item[grepl("^C", r$dif_df$ETS)]
+          for (ci in c_items) {
+            pdiff <- r$dif_df$pdiff_adj[r$dif_df$Item == ci]
+            direction <- ifelse(pdiff > 0,
+                                paste("latwiejszy dla grupy", r$group_focal),
+                                paste("latwiejszy dla grupy", r$group_ref))
+            cat(sprintf("- **%s** (pdiff = %.3f): %s\n", ci, pdiff, direction))
           }
+          cat("\n")
         }
-      }
-    } else {
-      # DIF na calym zbiorze
-      irt_all <- irt_results[["all"]]
-      if (!is.null(irt_all)) {
-        theta_all <- irt_all$theta_scores[, 1]
-        data_all <- irt_all$data_items
-
-        # Dopasuj wektor grup do danych IRT
-        # Usun wiersze z samymi NA (tak jak w IRT)
-        complete_rows <- rowSums(!is.na(items_data[, colnames(data_all)])) > 0
-        dif_group_filtered <- dif_groups[complete_rows]
-
-        for (i in 1:(length(unique_groups) - 1)) {
-          for (j in (i + 1):length(unique_groups)) {
-            pair_label <- paste(unique_groups[i], "vs", unique_groups[j])
-            result <- run_dif_pair(data_all, dif_group_filtered, theta_all,
-                                   unique_groups[i], unique_groups[j], pair_label)
-            if (!is.null(result)) {
-              dif_results[[pair_label]] <- result
-            }
-          }
-        }
+      } else if ("p_holm" %in% names(r$dif_df)) {
+        n_sig <- sum(r$dif_df$p_holm < 0.05, na.rm = TRUE)
+        cat(sprintf("**Podsumowanie:** %d z %d itemow z istotnym DIF (p Holm < 0.05)\n\n",
+                    n_sig, nrow(r$dif_df)))
       }
     }
 
-    # Podsumowanie DIF
-    if (length(dif_results) > 0) {
-      cat("### Podsumowanie DIF\n\n")
-      cat("**Interpretacja ogolna:**\n\n")
-      cat("- Jesli wiekszosc itemow ma klasyfikacje **A**, test jest sprawiedliwy\n")
-      cat("  dla porownywanych grup.\n")
-      cat("- Itemy z klasyfikacja **B** wymagaja monitorowania, ale nie musza\n")
-      cat("  byc automatycznie usuwane.\n")
-      cat("- Itemy z klasyfikacja **C** powinny byc zbadane merytoryczne -\n")
-      cat("  czy tresc itemu moze faworyzowac jedna grupe?\n")
-      cat("- **pdiff > 0:** item jest latwiejszy dla grupy fokalnej\n")
-      cat("- **pdiff < 0:** item jest latwiejszy dla grupy referencyjnej\n\n")
+    # Wykres
+    if (!is.null(r$plots$dif)) {
+      print(r$plots$dif)
+      cat("\n\n")
     }
+  }
+
+  # Podsumowanie DIF
+  if (length(dif_results) > 0) {
+    cat("### Podsumowanie DIF\n\n")
+    cat("**Interpretacja ogolna:**\n\n")
+    cat("- Jesli wiekszosc itemow ma klasyfikacje **A** lub p Holm > 0.05, test jest sprawiedliwy\n")
+    cat("  dla porownywanych grup.\n")
+    cat("- Itemy z klasyfikacja **B** lub umiarkowanym DIF wymagaja monitorowania.\n")
+    cat("- Itemy z klasyfikacja **C** lub bardzo istotnym DIF powinny byc zbadane merytoryczne.\n\n")
   }
 }
 ```
@@ -1596,39 +980,38 @@ for (name in names(irt_results)) {
   label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
 
   cat(sprintf(
-    "- **%s:** Wybrany model: %s, N itemow = %d\n",
+    "- **%s:** Wybrany model: %s, Typ itemow: %s, N itemow = %d\n",
     label,
     r$preferred_name,
+    r$item_type,
     ncol(r$data_items)
   ))
 
-  # Zakres parametrow z wybranego modelu
   params_df <- switch(
     r$preferred_name,
     "1PL" = r$params_1pl_df,
     "2PL" = r$params_2pl_df,
     "3PL" = r$params_3pl_df,
+    "Rasch_PCM" = r$params_1pl_df,
+    "2PL_GPCM" = r$params_2pl_df,
     r$params_2pl_df
   )
 
   if (!is.null(params_df)) {
-
     if ("a_dyskryminacja" %in% names(params_df) &&
         any(!is.na(params_df$a_dyskryminacja))) {
       a_range <- range(params_df$a_dyskryminacja, na.rm = TRUE)
       cat(sprintf("  - Dyskryminacja (a): %.2f - %.2f\n", a_range[1], a_range[2]))
     }
 
-    if ("b_trudnosc" %in% names(params_df) &&
-        any(!is.na(params_df$b_trudnosc))) {
-      b_range <- range(params_df$b_trudnosc, na.rm = TRUE)
-      cat(sprintf("  - Trudnosc (b): %.2f - %.2f\n", b_range[1], b_range[2]))
-    }
-
-    if ("g_zgadywanie" %in% names(params_df) &&
-        any(!is.na(params_df$g_zgadywanie))) {
-      g_range <- range(params_df$g_zgadywanie, na.rm = TRUE)
-      cat(sprintf("  - Zgadywanie (g): %.2f - %.2f\n", g_range[1], g_range[2]))
+    b_cols <- grep("^b[0-9]*$|^b_trudnosc$|^b$", names(params_df), value = TRUE)
+    if (length(b_cols) > 0) {
+      all_b <- unlist(params_df[, b_cols, drop = FALSE])
+      all_b <- all_b[!is.na(all_b)]
+      if (length(all_b) > 0) {
+        b_range <- range(all_b)
+        cat(sprintf("  - Trudnosc/progi (b): %.2f - %.2f\n", b_range[1], b_range[2]))
+      }
     }
   }
 }
@@ -1643,21 +1026,16 @@ if (length(fit_results) > 0) {
     r <- fit_results[[name]]
     label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
 
-    if (!is.null(r$sx2)) {
+    if (!is.null(r$sx2_df)) {
+      n_misfit <- sum(r$sx2_df$p < 0.05, na.rm = TRUE)
+      cat(sprintf("- **%s (S-X2):** %d/%d itemow z niedopasowaniem\n",
+                  label, n_misfit, nrow(r$sx2_df)))
+    }
 
-      p_col <- grep("^p", names(r$sx2), value = TRUE)[1]
-
-      if (!is.na(p_col)) {
-        n_misfit <- sum(r$sx2[[p_col]] < 0.05, na.rm = TRUE)
-        n_total <- nrow(r$sx2)
-
-        cat(sprintf(
-          "- **%s (S-X2):** %d/%d itemow z niedopasowaniem\n",
-          label,
-          n_misfit,
-          n_total
-        ))
-      }
+    if (!is.null(r$infit_df)) {
+      n_infit_bad <- sum(r$infit_df$Infit_MNSQ > 1.30 | r$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
+      cat(sprintf("- **%s (Infit):** %d/%d itemow poza zakresem\n",
+                  label, n_infit_bad, nrow(r$infit_df)))
     }
   }
 
@@ -1697,7 +1075,7 @@ cat("2. **Sprawdz itemy z niedopasowaniem** (S-X2 p < 0.05 lub infit > 1.30) -\n
 cat("   przeanalizuj ICC w poszukiwaniu wzorcow niedopasowania.\n")
 cat("3. **Sprawdz itemy z wysokim parametrem zgadywania** (g > 0.25, szczegolnie g > 0.35) -\n")
 cat("   moga wskazywac na slabe dystraktory lub mozliwosc odgadniecia odpowiedzi.\n")
-cat("4. **Itemy z DIF kategorii C** powinny byc zrewidowane pod katem tresci.\n")
+cat("4. **Itemy z DIF kategorii C** lub istotnym DIF powinny byc zrewidowane pod katem tresci.\n")
 cat("5. **Rzetelnosc** - jesli alpha < 0.70, rozwazyc dodanie itemow lub\n")
 cat("   rewizje istniejacych.\n")
 cat("6. **Funkcja informacyjna testu** - sprawdz, czy test dobrze mierzy\n")
@@ -1706,170 +1084,59 @@ cat("   w zakresie theta istotnym dla celu pomiaru.\n\n")
 
 ```{r export-results}
 # ============================================================================
-# EKSPORT WYNIKOW DO EXCELA
+# EKSPORT WYNIKOW DO EXCELA (silnik pakietu)
 # ============================================================================
 
 cat("## Eksport wynikow\n\n")
 
-export_sheets <- list()
+# Sciezka obok raportu (nie w katalogu pakietu)
+output_xlsx <- sub("\\.[^.]+$", "_wyniki.xlsx",
+                   basename(params$data_path))
 
-safe_sheet_name <- function(x) {
-  x <- gsub("[^A-Za-z0-9_]", "_", x)
-  substr(x, 1, 31)
+# Jesli znamy sciezke raportu, zapisz obok niego
+if (exists("output_path_report") && !is.null(output_path_report)) {
+  output_xlsx <- file.path(dirname(output_path_report), output_xlsx)
 }
 
-z_score <- function(x) {
-  if (all(is.na(x)) || stats::sd(x, na.rm = TRUE) == 0) {
-    return(rep(NA, length(x)))
+dif_to_export <- if (exists("dif_all") && isTRUE(dif_all$status$ok)) {
+  dif_all
+} else {
+  list()
+}
+
+export_result <- tryCatch(
+  export_results_to_excel(
+    ctt_results = ctt_results,
+    irt_results = irt_results,
+    fit_results = fit_results,
+    dif_results = dif_to_export,
+    raw_data = raw_data,
+    data_path = params$data_path,
+    id_var = params$id_var,
+    group_var = params$group_var,
+    has_versions = has_versions,
+    detected_version_col = detected_version_col,
+    output_file = output_xlsx,
+    overwrite = TRUE
+  ),
+  error = function(e) {
+    cat("Blad zapisu Excel:", e$message, "\n")
+    cat("Wyniki dostepne w obiektach R: ctt_results, irt_results, fit_results\n")
+    NULL
   }
-  as.numeric(scale(x))
-}
-
-# CTT
-for (name in names(ctt_results)) {
-  label <- ifelse(name == "all", "CTT", paste0("CTT_v", name))
-  export_sheets[[safe_sheet_name(label)]] <- ctt_results[[name]]$item_stats
-}
-
-# IRT parametry
-for (name in names(irt_results)) {
-  r <- irt_results[[name]]
-
-  export_sheets[[safe_sheet_name(ifelse(name == "all", "IRT_1PL", paste0("IRT_1PL_v", name)))]] <- r$params_1pl_df
-  export_sheets[[safe_sheet_name(ifelse(name == "all", "IRT_2PL", paste0("IRT_2PL_v", name)))]] <- r$params_2pl_df
-
-  if (!is.null(r$params_3pl_df)) {
-    export_sheets[[safe_sheet_name(ifelse(name == "all", "IRT_3PL", paste0("IRT_3PL_v", name)))]] <- r$params_3pl_df
-  }
-}
-
-# Wyniki osob: suma punktow + theta IRT
-person_scores_all <- list()
-
-for (name in names(irt_results)) {
-
-  r <- irt_results[[name]]
-  d <- r$data_items
-
-  row_ids <- match(rownames(d), rownames(raw_data))
-
-  raw_score <- rowSums(d, na.rm = TRUE)
-  n_answered <- rowSums(!is.na(d))
-  percent_score <- raw_score / n_answered
-
-  fs <- mirt::fscores(
-    r$preferred_model,
-    method = "EAP",
-    full.scores.SE = TRUE
-  )
-
-  theta <- fs[, 1]
-
-  theta_se <- if (ncol(fs) >= 2) {
-    fs[, 2]
-  } else {
-    NA
-  }
-
-  person_df <- data.frame(
-  raw_score = raw_score,
-  z_score = round(z_score(raw_score), 4),
-  theta_EAP = round(theta, 4),
-  theta_SE = round(theta_se, 4),
-  theta_z = round(z_score(theta), 4),
-  wybrany_model = r$preferred_name
 )
 
-# Dodaj ID osoby, jesli podano
-id_var <- params$id_var
-if (!is.null(id_var) && id_var %in% names(raw_data)) {
-  person_df <- cbind(
-    ID = raw_data[[id_var]][row_ids],
-    person_df
-  )
-}
-
-# Dodaj grupe, jesli istnieje
-if (exists("group_var") && !is.null(group_var) && group_var %in% names(raw_data)) {
-  person_df$grupa <- raw_data[[group_var]][row_ids]
-}
-
-# Dodaj wersje testu tylko jesli faktycznie istnieje wiele wersji
-if (exists("has_versions") && has_versions &&
-    "detected_version" %in% names(raw_data)) {
-
-  person_df$wersja <- raw_data$detected_version[row_ids]
-}
-
-person_scores_all[[name]] <- person_df
-}
-
-person_scores_export <- do.call(rbind, person_scores_all)
-export_sheets[["Wyniki_osob"]] <- person_scores_export
-
-# Item Fit
-for (name in names(fit_results)) {
-  r <- fit_results[[name]]
-  label <- ifelse(name == "all", "ItemFit", paste0("ItemFit_v", name))
-
-  if (!is.null(r$sx2) && !is.null(r$infit)) {
-
-    sx2_col <- grep("S_X2", names(r$sx2), value = TRUE)[1]
-    p_col <- grep("^p", names(r$sx2), value = TRUE)[1]
-    infit_col <- grep("infit", names(r$infit), ignore.case = TRUE, value = TRUE)[1]
-    outfit_col <- grep("outfit", names(r$infit), ignore.case = TRUE, value = TRUE)[1]
-
-    if (!is.na(sx2_col) && !is.na(p_col) &&
-        !is.na(infit_col) && !is.na(outfit_col)) {
-
-      fit_combined <- merge(
-        data.frame(
-          Item = rownames(r$sx2),
-          S_X2 = round(r$sx2[[sx2_col]], 3),
-          p_SX2 = round(r$sx2[[p_col]], 4)
-        ),
-        data.frame(
-          Item = rownames(r$infit),
-          Infit = round(r$infit[[infit_col]], 3),
-          Outfit = round(r$infit[[outfit_col]], 3)
-        ),
-        by = "Item",
-        all = TRUE
-      )
-
-      export_sheets[[safe_sheet_name(label)]] <- fit_combined
-    }
-  }
-}
-
-# DIF
-if (exists("dif_results") && length(dif_results) > 0) {
-  for (name in names(dif_results)) {
-    export_sheets[[safe_sheet_name(paste0("DIF_", name))]] <- dif_results[[name]]
-  }
-}
-
-# Zapisz
-output_file <- sub("\\.[^.]+$", "_wyniki.xlsx", basename(params$data_path))
-
-tryCatch({
-  writexl::write_xlsx(export_sheets, path = output_file)
-
-  cat(sprintf("Wyniki zapisane do: **%s**\n\n", output_file))
+if (!is.null(export_result) && isTRUE(export_result$status$ok)) {
+  cat(sprintf("Wyniki zapisane do: **%s**\n\n", export_result$output_file))
   cat("Arkusze:\n\n")
-
-  for (s in names(export_sheets)) {
-    cat(sprintf("- %s (%d wierszy)\n", s, nrow(export_sheets[[s]])))
+  for (s in export_result$sheets) {
+    cat(sprintf("- %s\n", s))
   }
-
-}, error = function(e) {
-  cat("Blad zapisu Excel:", e$message, "\n")
-  cat("Wyniki dostepne w obiektach R: ctt_results, irt_results, fit_results\n")
-})
+}
 
 cat("\n")
 ```
 
 ------------------------------------------------------------------------
 
-*Raport wygenerowany automatycznie za pomoca szablonu `Psychometria_Uniwersalna.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
+*Raport wygenerowany automatycznie za pomoca pakietu `aazbie` i szablonu `psychometria_raport.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
