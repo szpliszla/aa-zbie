@@ -16,12 +16,12 @@ params:
   # --- Sciezki i identyfikatory struktur ---
   data_path: !expr system.file("extdata", "math_data.csv", package = "aazbie")
   item_prefix: "mat_"
-  id_var: "id_ucznia"
-  group_var: "grupa"
+  id_var: NULL
+  group_var: NULL
   exclude_items: NULL
 
   # --- Zarzadzanie wersjami testu ---
-  version_var: "pomiar"
+  version_var: NULL
   min_pattern_prop: 0.05
   item_missing_max_prop: 0.90
   detected_version_col: "detected_version"
@@ -33,7 +33,7 @@ params:
   correlation_threshold_low: 0.15
 
   # --- Parametry Analizy DIF ---
-  dif_group_var: "grupa"
+  dif_group_var: NULL
   dif_method: "logistic"
 editor_options:
   markdown:
@@ -404,7 +404,7 @@ cat("## Wyniki CTT\n\n")
 render_ctt_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Problem CTT:**", result$status$message, "\n\n")
+    cat("**Nie przeprowadzono analizy CTT:**", result$status$message, "\n\n")
     return(invisible(NULL))
   }
 
@@ -498,7 +498,7 @@ cat("3. **Krok 3:** Usun itemy z niska korelacja (r <= 0.15)\n\n")
 render_elimination_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Problem:**", result$status$message, "\n\n")
+    cat("**Nie przeprowadzono eliminacji:**", result$status$message, "\n\n")
     return(invisible(NULL))
   }
 
@@ -575,7 +575,7 @@ cat("## Wyniki IRT\n\n")
 render_irt_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Problem IRT:**", result$status$message, "\n\n")
+    cat("**Nie przeprowadzono analizy IRT:**", result$status$message, "\n\n")
     return(invisible(NULL))
   }
 
@@ -766,7 +766,7 @@ cat("## Wyniki Item Fit\n\n")
 render_item_fit_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Problem item fit:**", result$status$message, "\n\n")
+    cat("**Nie przeprowadzono analizy item fit:**", result$status$message, "\n\n")
     return(invisible(NULL))
   }
 
@@ -870,7 +870,7 @@ dif_all <- run_dif_analysis(
 )
 
 if (!isTRUE(dif_all$status$ok)) {
-  cat("**Analiza DIF pominieta:**", dif_all$status$message, "\n\n")
+  cat("**Nie przeprowadzono analizy DIF:**", dif_all$status$message, "\n\n")
 } else {
 
   cat("**Zmienna grupujaca DIF:**", dif_all$dif_group_var, "\n")
@@ -883,7 +883,7 @@ if (!isTRUE(dif_all$status$ok)) {
 
     if (!isTRUE(r$status$ok)) {
       cat("####", r$label, "\n\n")
-      cat("**Problem:**", r$status$message, "\n\n")
+      cat("**Nie przeprowadzono analizy DIF:**", r$status$message, "\n\n")
       next
     }
 
