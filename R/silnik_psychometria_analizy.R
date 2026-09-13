@@ -803,6 +803,35 @@ make_empirical_icc_plot <- function(
   names(item_max_scores) <- names(data_items)
   item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
 
+    get_item_labels <- function(fit_result, fallback_items = NULL) {
+
+    fit_df <- as.data.frame(fit_result)
+
+    if ("item" %in% names(fit_df)) {
+      item_labels <- as.character(fit_df$item)
+    } else if ("Item" %in% names(fit_df)) {
+      item_labels <- as.character(fit_df$Item)
+    } else {
+      item_labels <- rownames(fit_df)
+    }
+
+    bad_labels <- is.null(item_labels) ||
+      length(item_labels) != nrow(fit_df) ||
+      any(is.na(item_labels)) ||
+      any(item_labels == "") ||
+      all(item_labels %in% as.character(seq_len(nrow(fit_df))))
+
+    if (
+      bad_labels &&
+        !is.null(fallback_items) &&
+        length(fallback_items) == nrow(fit_df)
+    ) {
+      item_labels <- as.character(fallback_items)
+    }
+
+    item_labels
+  }
+
   theta_groups <- cut(
     theta_vals,
     breaks = breaks_theta,
@@ -1665,9 +1694,14 @@ run_item_fit <- function(
 
     if (!is.na(sx2_col) && !is.na(df_col) && !is.na(p_col)) {
 
+      sx2_items <- get_item_labels(
+        sx2_result,
+        fallback_items = names(item_max_scores)
+      )
+
       sx2_df <- data.frame(
-        Item = rownames(sx2_result),
-        Max_score = as.numeric(item_max_scores[rownames(sx2_result)]),
+        Item = sx2_items,
+        Max_score = as.numeric(item_max_scores[sx2_items]),
         S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
         df = as.numeric(sx2_result[[df_col]]),
         p = round(as.numeric(sx2_result[[p_col]]), 4),
@@ -1727,8 +1761,13 @@ run_item_fit <- function(
 
     if (!is.na(infit_col) && !is.na(outfit_col)) {
 
+      infit_items <- get_item_labels(
+        infit_result,
+        fallback_items = names(item_max_scores)
+      )
+
       infit_df <- data.frame(
-        Item = rownames(infit_result),
+        Item = infit_items,
         Infit_MNSQ = round(as.numeric(infit_result[[infit_col]]), 3),
         Outfit_MNSQ = round(as.numeric(infit_result[[outfit_col]]), 3),
         stringsAsFactors = FALSE
@@ -1772,8 +1811,9 @@ run_item_fit <- function(
   n_items_fit <- ncol(data_items)
 
   pvq1_result <- NULL
+  pvq1_df <- NULL
   pvq1_status <- make_status(FALSE, "pvq1_skipped", "PV-Q1* pominieto.")
-
+  
   if (run_pvq1 && n_obs <= pvq1_n_max && n_items_fit <= pvq1_items_max) {
 
     pvq1_result <- tryCatch(
@@ -1788,7 +1828,32 @@ run_item_fit <- function(
         conditionMessage(pvq1_result)
       )
       pvq1_result <- NULL
-    } else {
+        } else {
+
+      pvq1_items <- get_item_labels(
+        pvq1_result,
+        fallback_items = names(item_max_scores)
+      )
+
+      pvq1_df <- as.data.frame(pvq1_result)
+
+      if ("item" %in% names(pvq1_df)) {
+        pvq1_df$item <- NULL
+      }
+
+      if ("Item" %in% names(pvq1_df)) {
+        pvq1_df$Item <- NULL
+      }
+
+      pvq1_df <- data.frame(
+        Item = pvq1_items,
+        pvq1_df,
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+
+      rownames(pvq1_df) <- NULL
+
       pvq1_status <- make_status(TRUE, "ok", NA_character_)
     }
   }
@@ -1881,6 +1946,7 @@ run_item_fit <- function(
     infit_status = infit_status,
     fit_combined = fit_combined,
     pvq1 = pvq1_result,
+    pvq1_df = pvq1_df,
     pvq1_status = pvq1_status,
     fit_plot_data = fit_plot_data,
     plots = list(fit_map = p_fit)
