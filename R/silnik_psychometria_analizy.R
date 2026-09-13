@@ -832,6 +832,23 @@ make_empirical_icc_plot <- function(
     item_labels
   }
 
+  sx2_rows_with_missing <- rowSums(is.na(data_items)) > 0
+  sx2_n_total <- nrow(data_items)
+  sx2_n_removed_na <- sum(sx2_rows_with_missing)
+  sx2_n_complete <- sx2_n_total - sx2_n_removed_na
+
+  sx2_na_info <- data.frame(
+    N_total = sx2_n_total,
+    N_complete = sx2_n_complete,
+    N_rows_with_missing = sx2_n_removed_na,
+    Percent_rows_with_missing = ifelse(
+      sx2_n_total > 0,
+      round(100 * sx2_n_removed_na / sx2_n_total, 1),
+      NA_real_
+    ),
+    stringsAsFactors = FALSE
+  )
+
   theta_groups <- cut(
     theta_vals,
     breaks = breaks_theta,
@@ -1670,10 +1687,14 @@ run_item_fit <- function(
   # ---------------------------------------------------------------
 
   sx2_result <- tryCatch(
-    mirt::itemfit(model, fit_stats = "S_X2"),
+    mirt::itemfit(
+      model,
+      fit_stats = "S_X2",
+      na.rm = TRUE
+    ),
     error = function(e) e
   )
-
+  
   sx2_df <- NULL
   sx2_status <- make_status(TRUE, "ok", NA_character_)
 
@@ -1941,6 +1962,7 @@ run_item_fit <- function(
     sx2 = sx2_result,
     sx2_df = sx2_df,
     sx2_status = sx2_status,
+    sx2_na_info = sx2_na_info,
     infit = infit_result,
     infit_df = infit_df,
     infit_status = infit_status,
