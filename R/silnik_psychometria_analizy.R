@@ -1194,7 +1194,7 @@ run_irt_for_items <- function(
     lrt_df <- data.frame(
       Porownanie = lrt_labels,
       Chi2 = round(anova_result$X2[-1], 2),
-      df = anova_result$df[-1] - anova_result$df[-nrow(anova_result)],
+      df = anova_result$df[-1],
       p = round(anova_result$p[-1], 4),
       stringsAsFactors = FALSE
     )
@@ -1474,7 +1474,7 @@ run_irt_for_items <- function(
         }
 
         if ("df" %in% names(lrt_result) && nrow(lrt_result) >= 2) {
-          lrt_df_val <- as.numeric(lrt_result$df[2] - lrt_result$df[1])
+          lrt_df_val <- as.numeric(lrt_result$df[2])
         }
 
         lrt_df <- data.frame(
