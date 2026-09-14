@@ -409,7 +409,8 @@ validate_items_data <- function(raw_data, item_cols) {
         paste0(
           "Wykluczono itemy z nieprawidlowymi wartosciami: ",
           paste(
-            sprintf("%s (%s)", invalid_items, invalid_reasons),
+            sprintf("%s (%s: %s)", invalid_items, invalid_reasons,
+              vapply(invalid_items, function(col) paste(sort(item_diagnostics[[col]]$vals), collapse = ","), character(1))),
             collapse = ", "
           )
         )
@@ -492,6 +493,10 @@ validate_items_data <- function(raw_data, item_cols) {
       )
     )
   }
+
+    # Aktualizacja item_max_scores i n_categories po odsiewie
+    item_max_scores <- item_max_scores[item_cols]
+    n_categories <- n_categories[item_cols]
 
   if (length(item_cols) == 0) {
     stop(

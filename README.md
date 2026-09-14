@@ -1,6 +1,6 @@
 # Automatyzacja analiz w ZBIE
 
-Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania analiz (analiza psychometryczna, analiza RCT) na danych z badań edukacyjnych.
+Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania analiz psychometrycznych na danych z badań edukacyjnych.
 
 # Jak uruchomić projekt?
 

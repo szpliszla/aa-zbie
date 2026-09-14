@@ -657,6 +657,11 @@ make_params_table <- function(model, model_name = NA_character_) {
     has_a & params_df$a_dyskryminacja >= 1.50
   ] <- "Bardzo dobry"
 
+
+  # W modelach 1PL / Rasch_PCM dyskryminacja jest ustalona, nie oceniamy jej
+  if (grepl("1PL|Rasch", model_name, ignore.case = TRUE)) {
+    params_df$Ocena_a[has_a] <- "Ustalone (1PL)"
+  }
   params_df
 }
 
@@ -2319,11 +2324,6 @@ run_dif_pair <- function(
         )
       ) +
         ggplot2::geom_col() +
-        ggplot2::geom_hline(
-          yintercept = c(-1.5, -1, 1, 1.5),
-          linetype = "dashed",
-          alpha = 0.5
-        ) +
         ggplot2::coord_flip() +
         ggplot2::labs(
           title = paste("DIF:", label),
@@ -2500,7 +2500,7 @@ run_dif_pair <- function(
     "Brak sygnalu DIF"
   )
 
-  dif_df$neg_log10_p_holm <- -log10(pmax(dif_df$p_holm, .Machine$double.xmin))
+  dif_df$neg_log10_p_holm <- pmin(-log10(pmax(dif_df$p_holm, .Machine$double.xmin)), 20)
 
   p_dif <- NULL
 

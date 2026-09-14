@@ -26,7 +26,7 @@ params:
   item_missing_max_prop: 0.90
   warn_unclassified_prop: 0.05
   max_unclassified_prop: 0.20
-  detected_version_col: "detected_version"
+  detected_version_col: ".detected_version"
 
   # --- Kryteria Walidacji i CTT ---
   alpha_threshold: 0.70
