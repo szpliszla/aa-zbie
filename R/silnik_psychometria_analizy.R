@@ -219,6 +219,42 @@ run_ctt_for_items <- function(
     ))
   }
 
+  observed_matrix <- !is.na(as.matrix(data_items))
+  pairwise_n <- t(observed_matrix) %*% observed_matrix
+
+  if (any(pairwise_n < 3)) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_pairwise_observations",
+        "Za malo wspolnych obserwacji dla co najmniej jednej pary itemow. Alpha Cronbacha nie zostala obliczona."
+      ),
+      label = label,
+      zero_variance_items = zero_var,
+      pairwise_n = pairwise_n,
+      data_items = data_items
+    ))
+  }
+
+  cor_matrix <- tryCatch(
+    suppressWarnings(stats::cor(data_items, use = "pairwise.complete.obs")),
+    error = function(e) e
+  )
+
+  if (inherits(cor_matrix, "error") || any(!is.finite(cor_matrix))) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "invalid_correlation_matrix",
+        "Macierz korelacji jest niepoprawna. Alpha Cronbacha nie zostala obliczona."
+      ),
+      label = label,
+      zero_variance_items = zero_var,
+      pairwise_n = pairwise_n,
+      data_items = data_items
+    ))
+  }
+  
   alpha_result <- tryCatch(
     suppressWarnings(psych::alpha(data_items, check.keys = FALSE)),
     error = function(e) e
