@@ -57,6 +57,10 @@
 #' @param discrimination_min Minimalny próg mocy różnicującej itemu.
 #'   Domyślnie `0.30`.
 #' @param dif_method Metoda analizy DIF. Domyślnie `"logistic"`.
+#' @param unified_irt Wartosc logiczna. Gdy \code{TRUE} (domyslnie) i wykryto
+#'   wiele wersji testu, IRT, item fit i DIF sa liczone na jednym wspolnym
+#'   modelu (pelna macierz z brakami, FIML). Gdy \code{FALSE}, analizy IRT
+#'   biegna osobno per wersja.
 #'
 #' @return
 #' Funkcja jest wywoływana głównie dla efektu ubocznego, czyli zapisania raportu
@@ -96,7 +100,8 @@ render_report <- function(
     max_unclassified_prop = 0.20,
     alpha_threshold = 0.70,
     discrimination_min = 0.30,
-    dif_method = "logistic"
+    dif_method = "logistic",
+    unified_irt = TRUE
 ) {
   if (!fs::is_absolute_path(output_path)) {
     output_path <- fs::path_join(c(getwd(), output_path))
@@ -125,7 +130,8 @@ render_report <- function(
       max_unclassified_prop = max_unclassified_prop,
       alpha_threshold = alpha_threshold,
       discrimination_min = discrimination_min,
-      dif_method = dif_method
+      dif_method = dif_method,
+      unified_irt = unified_irt
     )
   )
 }

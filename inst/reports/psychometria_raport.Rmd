@@ -37,6 +37,9 @@ params:
   # --- Parametry Analizy DIF ---
   dif_group_var: NULL
   dif_method: "logistic"
+
+  # --- Kalibracja IRT ---
+  unified_irt: true
 editor_options:
   markdown:
     wrap: 72
@@ -685,8 +688,36 @@ render_irt_result <- function(result) {
 }
 
 irt_results <- list()
+irt_unified <- has_versions && isTRUE(params$unified_irt)
 
-if (has_versions) {
+if (irt_unified) {
+
+  # Wspolna kalibracja IRT: pelna macierz z brakami (FIML)
+  all_remaining <- unique(unlist(
+    lapply(elimination_results, `[[`, "remaining_items")
+  ))
+  if (length(all_remaining) == 0) all_remaining <- item_cols
+  all_remaining <- intersect(all_remaining, colnames(items_data))
+  unified_max <- item_max_scores[all_remaining]
+
+  n_persons_unified <- sum(rowSums(!is.na(items_data[, all_remaining, drop = FALSE])) > 0)
+
+  cat("**Wspolna kalibracja IRT** na pelnej macierzy danych\n")
+  cat("(wszystkie wersje, braki strukturalne obslugiwane przez FIML).\n\n")
+  cat("- Itemow:", length(all_remaining), "\n")
+  cat("- Osob:", n_persons_unified, "\n\n")
+
+  result <- run_irt_for_items(
+    items_data[, all_remaining, drop = FALSE],
+    label = "Wspolna kalibracja",
+    item_type = item_type,
+    item_max_scores = unified_max
+  )
+
+  render_irt_result(result)
+  if (isTRUE(result$status$ok)) irt_results[["all"]] <- result
+
+} else if (has_versions) {
 
   for (v in detected_versions) {
 
@@ -869,7 +900,7 @@ dif_all <- run_dif_analysis(
   dif_group_var = params$dif_group_var,
   group_var = params$group_var,
   has_groups = has_groups,
-  has_versions = has_versions,
+  has_versions = has_versions && !irt_unified,
   detected_version_col = detected_version_col
 )
 
