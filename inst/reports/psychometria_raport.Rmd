@@ -24,6 +24,8 @@ params:
   version_var: NULL
   min_pattern_prop: 0.05
   item_missing_max_prop: 0.90
+  warn_unclassified_prop: 0.05
+  max_unclassified_prop: 0.20
   detected_version_col: "detected_version"
 
   # --- Kryteria Walidacji i CTT ---
@@ -304,7 +306,9 @@ version_result <- detect_test_versions(
   version_var = version_var,
   min_pattern_prop = params$min_pattern_prop,
   item_missing_max_prop = params$item_missing_max_prop,
-  detected_version_col = params$detected_version_col
+  detected_version_col = params$detected_version_col,
+  warn_unclassified_prop = params$warn_unclassified_prop,
+  max_unclassified_prop = params$max_unclassified_prop
 )
 
 raw_data <- version_result$raw_data
