@@ -548,7 +548,9 @@ detect_test_versions <- function(
     version_var = NULL,
     min_pattern_prop = 0.05,
     item_missing_max_prop = 0.90,
-    detected_version_col = ".detected_version"
+    detected_version_col = ".detected_version",
+    warn_unclassified_prop = 0.05,
+    max_unclassified_prop = 0.20
 ) {
 
   if (!is.data.frame(raw_data)) {
@@ -628,6 +630,37 @@ detect_test_versions <- function(
   ) {
     stop(
       "Argument 'detected_version_col' musi byc pojedyncza nazwa kolumny.",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(warn_unclassified_prop) ||
+      length(warn_unclassified_prop) != 1 ||
+      warn_unclassified_prop < 0 ||
+      warn_unclassified_prop >= 1
+  ) {
+    stop(
+      "Argument 'warn_unclassified_prop' musi byc pojedyncza liczba z przedzialu [0, 1).",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(max_unclassified_prop) ||
+      length(max_unclassified_prop) != 1 ||
+      max_unclassified_prop <= 0 ||
+      max_unclassified_prop > 1
+  ) {
+    stop(
+      "Argument 'max_unclassified_prop' musi byc pojedyncza liczba z przedzialu (0, 1].",
+      call. = FALSE
+    )
+  }
+
+  if (warn_unclassified_prop > max_unclassified_prop) {
+    stop(
+      "Argument 'warn_unclassified_prop' nie moze byc wiekszy niz 'max_unclassified_prop'.",
       call. = FALSE
     )
   }
@@ -789,6 +822,72 @@ detect_test_versions <- function(
 
   detected_versions <- sort(unique(version_vector[!is.na(version_vector)]))
 
+  # kontrola bezpieczenstwa automatycznego wykrywania wersji
+
+  n_total <- nrow(items_matrix)
+  n_unclassified <- length(unclassified_rows)
+
+  unclassified_prop <- if (n_total > 0) {
+    n_unclassified / n_total
+  } else {
+    NA_real_
+  }
+
+  auto_detection_disabled <- FALSE
+
+  if (
+    is.finite(unclassified_prop) &&
+      n_unclassified > 0 &&
+      unclassified_prop > warn_unclassified_prop
+  ) {
+    detection_warnings <- c(
+      detection_warnings,
+      paste0(
+        "Wykrywanie wersji testu pozostawilo ",
+        n_unclassified,
+        " obserwacji bez przypisanej wersji (",
+        round(100 * unclassified_prop, 1),
+        "%)."
+      )
+    )
+  }
+
+  if (
+    detection_method == "missing_pattern" &&
+      is.finite(unclassified_prop) &&
+      unclassified_prop > max_unclassified_prop
+  ) {
+    detection_warnings <- c(
+      detection_warnings,
+      paste0(
+        "Automatyczne wykrywanie wersji testu zostalo wylaczone, ",
+        "poniewaz nie przypisalo wersji dla ",
+        n_unclassified,
+        " obserwacji (",
+        round(100 * unclassified_prop, 1),
+        "%). Analizy zostana wykonane bez podzialu na wersje."
+      )
+    )
+
+    auto_detection_disabled <- TRUE
+
+    version_vector <- rep(NA_character_, nrow(items_matrix))
+    raw_data[[detected_version_col]] <- version_vector
+    detected_versions <- character(0)
+    unclassified_rows <- integer(0)
+    unclassified_patterns <- NULL
+  }
+
+  version_detection_safety <- data.frame(
+    N_total = n_total,
+    N_unclassified = n_unclassified,
+    Percent_unclassified = round(100 * unclassified_prop, 1),
+    Warn_threshold_percent = round(100 * warn_unclassified_prop, 1),
+    Max_threshold_percent = round(100 * max_unclassified_prop, 1),
+    Auto_detection_disabled = auto_detection_disabled,
+    stringsAsFactors = FALSE
+  )
+
   version_items <- make_version_items(
     version_vector = version_vector,
     detected_versions = detected_versions
@@ -844,6 +943,9 @@ detect_test_versions <- function(
     unclassified_patterns = unclassified_patterns,
     detected_version_col = detected_version_col,
     min_pattern_prop = min_pattern_prop,
-    item_missing_max_prop = item_missing_max_prop
+    item_missing_max_prop = item_missing_max_prop,
+    warn_unclassified_prop = warn_unclassified_prop,
+    max_unclassified_prop = max_unclassified_prop,
+    version_detection_safety = version_detection_safety
   )
 }
