@@ -46,6 +46,12 @@
 #'   aby wzorzec został uznany za odrębną wersję testu. Domyślnie `0.05`.
 #' @param item_missing_max_prop Maksymalna dopuszczalna proporcja braków w
 #'   itemie wewnątrz wersji testu. Domyślnie `0.90`.
+#' @param warn_unclassified_prop Proporcja obserwacji bez przypisanej wersji,
+#'   powyzej ktorej raport dodaje ostrzezenie. Domyslnie `0.05`.
+#' @param max_unclassified_prop Maksymalna dopuszczalna proporcja obserwacji
+#'   bez przypisanej wersji przy automatycznym wykrywaniu wersji testu.
+#'   Po przekroczeniu tego progu automatyczny podzial na wersje zostaje
+#'   wylaczony. Domyslnie `0.20`.
 #' @param alpha_threshold Próg alfa Cronbacha do oceny rzetelności.
 #'   Domyślnie `0.70`.
 #' @param discrimination_min Minimalny próg mocy różnicującej itemu.
@@ -86,6 +92,8 @@ render_report <- function(
     version_var = NULL,
     min_pattern_prop = 0.05,
     item_missing_max_prop = 0.90,
+    warn_unclassified_prop = 0.05,
+    max_unclassified_prop = 0.20,
     alpha_threshold = 0.70,
     discrimination_min = 0.30,
     dif_method = "logistic"
@@ -113,6 +121,8 @@ render_report <- function(
       version_var = version_var,
       min_pattern_prop = min_pattern_prop,
       item_missing_max_prop = item_missing_max_prop,
+      warn_unclassified_prop = warn_unclassified_prop,
+      max_unclassified_prop = max_unclassified_prop,
       alpha_threshold = alpha_threshold,
       discrimination_min = discrimination_min,
       dif_method = dif_method
