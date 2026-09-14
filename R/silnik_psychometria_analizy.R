@@ -349,6 +349,9 @@ run_ctt_for_items <- function(
 #' @param label Etykieta analizy zapisywana w wyniku.
 #' @param thresholds Wektor liczbowy z kolejnymi progami korelacji `r_cor` uzywanymi do usuwania itemow.
 #'
+#' @param alpha_timeout Maksymalny czas (w sekundach) na pojedyncze wywolanie
+#'   \code{psych::alpha()}. Po przekroczeniu limitu eliminacja zostaje przerwana
+#'   z ostrzezeniem. Domyslnie \code{120}.
 #' @return Lista zawierajaca status, tabele krokow eliminacji, nazwy pozostalych i usunietych itemow oraz finalne dane.
 #'
 #' @examples
@@ -359,7 +362,8 @@ run_ctt_for_items <- function(
 sequential_elimination <- function(
     data_items,
     label = "Caly test",
-    thresholds = c(0, 0.10, 0.15)
+    thresholds = c(0, 0.10, 0.15),
+    alpha_timeout = 120
 ) {
 
   if (ncol(data_items) < 3) {
@@ -380,6 +384,22 @@ sequential_elimination <- function(
   current_data <- data_items
   all_removed <- character(0)
 
+  safe_alpha <- function(d, timeout) {
+    tryCatch({
+      setTimeLimit(elapsed = timeout)
+      on.exit(setTimeLimit(elapsed = Inf), add = TRUE)
+      suppressWarnings(psych::alpha(d, check.keys = FALSE))
+    }, error = function(e) {
+      if (grepl("time limit|elapsed", conditionMessage(e), ignore.case = TRUE)) {
+        structure(list(message = conditionMessage(e)), class = c("alpha_timeout", "condition"))
+      } else {
+        NULL
+      }
+    })
+  }
+
+  alpha_timed_out <- FALSE
+
   default_step_names <- c(
     "Ujemne korelacje (r <= 0)",
     "Bardzo niska korelacja (r <= 0.10)",
@@ -395,10 +415,13 @@ sequential_elimination <- function(
   for (s in seq_along(thresholds)) {
     if (ncol(current_data) < 3) break
 
-    alpha_res <- tryCatch(
-      suppressWarnings(psych::alpha(current_data, check.keys = FALSE)),
-      error = function(e) NULL
-    )
+    alpha_res <- safe_alpha(current_data, alpha_timeout)
+
+    if (inherits(alpha_res, "alpha_timeout")) {
+      alpha_timed_out <- TRUE
+      break
+    }
+
 
     if (is.null(alpha_res)) break
 
@@ -424,13 +447,15 @@ sequential_elimination <- function(
     }
   }
 
-  if (ncol(current_data) >= 3) {
-    alpha_final <- tryCatch(
-      suppressWarnings(psych::alpha(current_data, check.keys = FALSE)),
-      error = function(e) NULL
-    )
+  if (ncol(current_data) >= 3 && !alpha_timed_out) {
+    alpha_final <- safe_alpha(current_data, alpha_timeout)
 
-    if (!is.null(alpha_final)) {
+    if (inherits(alpha_final, "alpha_timeout")) {
+      alpha_timed_out <- TRUE
+    }
+
+
+    if (!is.null(alpha_final) && !inherits(alpha_final, "alpha_timeout")) {
       steps[[length(steps) + 1]] <- data.frame(
         Krok = "Po eliminacji",
         Threshold = NA_real_,
@@ -445,8 +470,22 @@ sequential_elimination <- function(
   steps_df <- if (length(steps) > 0) do.call(rbind, steps) else data.frame()
   if (nrow(steps_df) > 0) steps_df$Alpha <- round(steps_df$Alpha, 3)
 
+
+  status <- if (alpha_timed_out) {
+    make_status(
+      FALSE,
+      "alpha_timeout",
+      paste0(
+        "Obliczanie alpha Cronbacha przekroczylo limit czasu (",
+        alpha_timeout, " s). Eliminacja zostala przerwana."
+      )
+    )
+  } else {
+    make_status(TRUE, "ok", NA_character_)
+  }
+
   list(
-    status = make_status(TRUE, "ok", NA_character_),
+    status = status,
     label = label,
     steps = steps_df,
     remaining_items = names(current_data),
