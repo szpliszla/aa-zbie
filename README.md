@@ -108,6 +108,22 @@ podgrupach per zeszyt.
 
 CTT i sekwencyjna eliminacja nadal biegną osobno per wersja.
 
+
+## Orientacyjny czas renderowania
+
+Zmierzone na Windows 10, R 4.6, dane binarne bez braków strukturalnych.
+
+| Osoby | Itemy | Czas |
+|-------|-------|------|
+| 100 | 15 | ~4 s |
+| 500 | 30 | ~6 s |
+| 500 | 50 | ~8 s |
+| 1000 | 30 | ~4 s |
+
+Problemy z wydajnością mogą wystąpić przy danych z dużą liczbą braków
+strukturalnych (np. projekt rotowany z >50 itemów). W takim przypadku
+warto podać `version_var` lub użyć `unified_irt = TRUE` (domyślne).
+
 # Struktura projektu
 
 ```

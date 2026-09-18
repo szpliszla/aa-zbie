@@ -24,7 +24,8 @@ Imports:
   rmarkdown,
   knitr
 Suggests:
-    testthat
+    testthat,
+    kableExtra
 Config/testthat/edition: 3
 Depends: 
     R (>= 3.5)

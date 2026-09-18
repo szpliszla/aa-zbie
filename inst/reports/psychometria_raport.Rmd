@@ -85,6 +85,20 @@ if (!exists("run_ctt_for_items", mode = "function")) {
   }
   source(engine_path_analizy)
 }
+
+# Helper do formatowania tabel
+fmt_table <- function(df, ...) {
+  if (requireNamespace("kableExtra", quietly = TRUE)) {
+    kableExtra::kbl(df, row.names = FALSE, ...) |>
+      kableExtra::kable_styling(
+        bootstrap_options = c("striped", "hover", "condensed"),
+        full_width = FALSE,
+        font_size = 13
+      )
+  } else {
+    knitr::kable(df, row.names = FALSE, ...)
+  }
+}
 ```
 
 # Instrukcja przygotowania danych
@@ -159,7 +173,7 @@ if (length(non_numeric) > 0) {
   conversion_diagnostics <- validation_result$conversion_diagnostics
 
   if (nrow(conversion_diagnostics) > 0) {
-    print(knitr::kable(conversion_diagnostics, row.names = FALSE))
+    print(fmt_table(conversion_diagnostics))
     cat("\n")
   } else {
     cat(paste("-", non_numeric, collapse = "\n"), "\n\n")
@@ -193,7 +207,7 @@ if (!is.null(item_type) && item_type %in% c("polytomous", "mixed")) {
       N_kategorii = n_categories[poly_items],
       row.names = NULL
     )
-    print(knitr::kable(poly_info, row.names = FALSE))
+    print(fmt_table(poly_info))
     cat("\n")
   }
 } else {
@@ -228,7 +242,7 @@ missing_summary <- missing_summary[order(-missing_summary$Procent_brakow), ]
 items_with_missing <- missing_summary[missing_summary$Procent_brakow > 0, ]
 if (nrow(items_with_missing) > 0) {
   cat("Itemy z brakami danych:\n\n")
-  print(knitr::kable(items_with_missing, row.names = FALSE))
+  print(fmt_table(items_with_missing))
   cat("\n")
 } else {
   cat("Brak brakujacych danych w itemach. OK\n\n")
@@ -289,7 +303,7 @@ cat("- p = 0.20-0.80: optymalny zakres trudnosci\n")
 cat("- p > 0.80: item latwy\n")
 cat("- p > 0.95 lub p < 0.05: item ekstremalny - rozwazyc usuniecie\n\n")
 
-print(knitr::kable(desc_stats, row.names = FALSE))
+print(fmt_table(desc_stats))
 cat("\n")
 ```
 
@@ -336,7 +350,7 @@ if (length(version_result$detection_warnings) > 0) {
 
 if (nrow(version_result$version_summary) > 0) {
   cat("\n**Wykryte wersje testu:**\n\n")
-  print(knitr::kable(version_result$version_summary, row.names = FALSE))
+  print(fmt_table(version_result$version_summary))
   cat("\n")
 
   # Ostrzezenie o odrzuconych osobach
@@ -426,14 +440,14 @@ render_ctt_result <- function(result) {
   }
 
   cat("#### Rzetelnosc\n\n")
-  print(knitr::kable(result$reliability, row.names = FALSE))
+  print(fmt_table(result$reliability))
   cat("\n")
 
   cat("#### Statystyki itemow\n\n")
-  print(knitr::kable(result$item_stats, row.names = FALSE))
+  print(fmt_table(result$item_stats))
   cat("\n")
 
-  print(knitr::kable(result$ocena_counts, row.names = FALSE))
+  print(fmt_table(result$ocena_counts))
   cat("\n")
 
   n_bad <- sum(result$item_stats$r_cor < 0, na.rm = TRUE)
@@ -514,7 +528,7 @@ render_elimination_result <- function(result) {
   if (nrow(result$steps) > 0) {
     display_steps <- result$steps[, c("Krok", "N_itemow", "Alpha", "Usunieto")]
     display_steps$Usunieto[is.na(display_steps$Usunieto)] <- "-"
-    print(knitr::kable(display_steps, row.names = FALSE))
+    print(fmt_table(display_steps))
     cat("\n")
   }
 }
@@ -596,14 +610,14 @@ render_irt_result <- function(result) {
 
   if (!is.null(result$comparison_df)) {
     display_comp <- result$comparison_df[, c("Model", "AIC", "BIC", "LogLik", "df", "selected")]
-    print(knitr::kable(display_comp, row.names = FALSE))
+    print(fmt_table(display_comp))
     cat("\n")
   }
 
   # --- LRT ---
   if (!is.null(result$lrt) && nrow(result$lrt) > 0) {
     cat("#### Test ilorazu wiarogodnosci (LRT)\n\n")
-    print(knitr::kable(result$lrt, row.names = FALSE))
+    print(fmt_table(result$lrt))
     cat("\n")
   }
 
@@ -630,7 +644,7 @@ render_irt_result <- function(result) {
 
   for (idx in seq_along(params_list)) {
     cat("##### Model", model_names[idx], "\n\n")
-    print(knitr::kable(params_list[[idx]], row.names = FALSE))
+    print(fmt_table(params_list[[idx]]))
     cat("\n")
   }
 
@@ -810,11 +824,18 @@ render_item_fit_result <- function(result) {
   # S-X2
   if (isTRUE(result$sx2_status$ok) && !is.null(result$sx2_df)) {
     cat("#### Statystyka S-X2 (Orlando-Thissen)\n\n")
-    print(knitr::kable(result$sx2_df, row.names = FALSE))
+    print(fmt_table(result$sx2_df))
     cat("\n")
 
     n_misfit <- sum(result$sx2_df$p < 0.05, na.rm = TRUE)
     cat(sprintf("**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).\n\n",
+                n_misfit, nrow(result$sx2_df)))
+
+    if ("RMSEA" %in% names(result$sx2_df)) {
+      n_rmsea_bad <- sum(result$sx2_df$RMSEA > 0.05, na.rm = TRUE)
+      cat(sprintf("**RMSEA:** %d z %d itemow z RMSEA > 0.05\n\n",
+                  n_rmsea_bad, sum(!is.na(result$sx2_df$RMSEA))))
+    }
                 n_misfit, nrow(result$sx2_df)))
   } else if (!is.null(result$sx2_status$message)) {
     cat("#### S-X2\n\n")
@@ -824,7 +845,7 @@ render_item_fit_result <- function(result) {
   # Infit / Outfit
   if (isTRUE(result$infit_status$ok) && !is.null(result$infit_df)) {
     cat("#### Statystyki Infit i Outfit\n\n")
-    print(knitr::kable(result$infit_df, row.names = FALSE))
+    print(fmt_table(result$infit_df))
     cat("\n")
 
     n_infit_bad <- sum(result$infit_df$Infit_MNSQ > 1.30 | result$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
@@ -847,12 +868,23 @@ render_item_fit_result <- function(result) {
   }
 
   cat("**Interpretacja ogolna item fit:**\n\n")
-  cat("- Itemy z dobrym dopasowaniem (S-X2 p > 0.05 ORAZ infit/outfit w zakresie 0.70-1.30)\n")
-  cat("  sa dobrze opisywane przez model IRT.\n")
-  cat("- **Niedodopasowanie (misfit):** Infit/Outfit > 1.30 oznacza, ze item jest mniej\n")
-  cat("  przewidywalny niz zaklada model.\n")
-  cat("- **Przeddopasowanie (overfit):** Infit/Outfit < 0.70 moze wskazywac na\n")
-  cat("  zaleznosc lokalna miedzy itemami.\n\n")
+  cat("- **RMSEA < 0.05:** dobre dopasowanie; **0.05-0.10:** akceptowalne; **> 0.10:** slabe\n")
+  cat("- **Infit/Outfit 0.70-1.30:** akceptowalne dopasowanie\n")
+  cat("- **S-X2 p > 0.05:** model dobrze opisuje item\n\n")
+
+  if (!is.null(result$model_name)) {
+    if (grepl("1PL|Rasch", result$model_name)) {
+      cat("*Model Rascha/1PL: statystyki infit i outfit sa glownymi miarami dopasowania.*\n\n")
+    } else {
+      cat("*Model 2PL+: RMSEA i S-X2 sa rekomendowanymi miarami dopasowania.*\n\n")
+    }
+  }
+
+
+
+
+
+
 }
 
 fit_results <- list()
@@ -930,7 +962,7 @@ if (!isTRUE(dif_all$status$ok)) {
 
     # Tabela wynikow DIF
     if (!is.null(r$dif_df) && nrow(r$dif_df) > 0) {
-      print(knitr::kable(r$dif_df, row.names = FALSE))
+      print(fmt_table(r$dif_df))
       cat("\n")
 
       # Podsumowanie: binarne (ETS) vs politomiczne (p_holm)

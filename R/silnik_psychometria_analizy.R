@@ -1791,7 +1791,8 @@ run_item_fit <- function(
         Max_score = as.numeric(item_max_scores[sx2_items]),
         S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
         df = as.numeric(sx2_result[[df_col]]),
-        p = round(as.numeric(sx2_result[[p_col]]), 4),
+        p = round(as.numeric(sx2_result[[p_col]]), 4),,
+        RMSEA = if ("RMSEA.S_X2" %in% names(sx2_result)) round(as.numeric(sx2_result[["RMSEA.S_X2"]]), 3) else NA_real_,
         stringsAsFactors = FALSE
       )
 
