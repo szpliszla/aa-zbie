@@ -1,10 +1,10 @@
 # Automatyzacja analiz w ZBIE
 
-Celem projektu jest stworzenie narzędzia do samodzielnego przeprowadzania analiz psychometrycznych na danych z badań edukacyjnych.
+Pakiet R do automatycznej analizy psychometrycznej danych testowych:
+CTT, IRT (modele binarne i politomiczne), item fit, DIF, eksport
+wyników do Excel i raport HTML.
 
 # Jak uruchomić projekt?
-
-Projekt korzysta z systemu `renv` do izolacji środowiska. Aby go uruchomić na nowym komputerze:
 
 1.  Zainstaluj pakiet `pak`:
 
@@ -12,7 +12,7 @@ Projekt korzysta z systemu `renv` do izolacji środowiska. Aby go uruchomić na 
     install.packages('pak')
     ```
 
-2.  Zaintaluj ten pakiet. W konsoli R wykonaj:
+2.  Zainstaluj ten pakiet. W konsoli R wykonaj:
 
     ``` r
     pak::pkg_install('szpliszla/aa-zbie')
@@ -22,13 +22,24 @@ Projekt korzysta z systemu `renv` do izolacji środowiska. Aby go uruchomić na 
 
     ``` r
     aazbie::render_report(
-       "ścieżka pod którą zapisany zostanie raport",
-       "ścieżka do pliku z danymi",
-       "prefiks itemów",
-       "zmienna grupująca",
-       "zmienna z id_ucznia",
-       "zmienna grupująca dla diff-ów"
-       )
+      output_path = "raport.html",
+      data_path   = "dane.csv",
+      item_prefix = "mat_"
+    )
+    ```
+
+    Pełny przykład z opcjonalnymi parametrami:
+
+    ``` r
+    aazbie::render_report(
+      output_path   = "raport.html",
+      data_path     = "dane.csv",
+      item_prefix   = "mat_",
+      group_var     = "grupa",
+      id_var        = "id_ucznia",
+      dif_group_var = "plec",
+      version_var   = "nr_zeszytu"
+    )
     ```
 
 Aby raport działał poprawnie, dane muszą spełnić określone wymagania.
@@ -42,60 +53,80 @@ Aby raport działał poprawnie, dane muszą spełnić określone wymagania.
 
 ## Struktura danych
 
-Dane muszą być w formacie **szerokim** (wide format) – każdy wiersz to jedna osoba badana, każda kolumna to jedna zmienna.
+Dane muszą być w formacie **szerokim** (wide format) — każdy wiersz
+to jedna osoba badana, każda kolumna to jedna zmienna.
 
 | Kolumna | Opis | Wymagane |
-|------------------------|------------------------|------------------------|
-| Zmienne identyfikujące (ID) | ID osoby, ID szkoły itp. | Opcjonalne |
+|---|---|---|
 | **Itemy testowe** | Odpowiedzi na zadania testu | **TAK** |
+| Zmienne identyfikujące (ID) | ID osoby, ID szkoły itp. | Opcjonalne |
 | Zmienna grupująca | Np. grupa eksperymentalna/kontrolna, płeć | Opcjonalne (wymagane dla DIF) |
 | Wersja testu | Różne wersje/formularze testu | Opcjonalne |
 
 ## Kodowanie odpowiedzi
 
-- Itemy muszą być zakodowane jako **0/1** (dychotomicznie)
+- Itemy mogą być zakodowane **binarnie** lub **politomicznie**:
   - `0` = odpowiedź błędna
-  - `1` = odpowiedź poprawna
+  - `1` = odpowiedź poprawna (lub częściowo poprawna)
+  - `2`, `3`, ... = wyższe kategorie punktowe (partial credit)
   - `NA` = brak odpowiedzi (dozwolone)
-- Wszystkie itemy testowe muszą mieć **wspólny prefiks** w nazwie (np. `mat_`, `item_`, `q_`)
+- Dla itemów politomicznych (np. 0/1/2) pakiet automatycznie dobiera
+  modele partial credit (PCM, GPCM) zamiast binarnych (1PL, 2PL, 3PL).
+- Wszystkie itemy testowe muszą mieć **wspólny prefiks** w nazwie
+  (np. `mat_`, `item_`, `zad_`).
 
 ## Parametry funkcji `render_report()`
 
-- `output_path`: ścieżka, pod którą zapisany zostanie raport
-- `data_path`: ścieżka do pliku z danymi
-- `item_prefix`: prefiks nazw kolumn z itemami (np. `"mat_"`)
-- `id_var`: nazwa zmiennej z identyfikatorem osoby – opcjonalna
-- `group_var`: zmienna grupująca (np. grupa eksperymentalna/kontrolna) – opcjonalna
-- `dif_group_var`: zmienna do analizy DIF (np. `"grupa"`, `"płeć"`) – opcjonalna
-- `exclude_items`: lista itemów do wykluczenia z analiz (np. `c("mat_5", "mat_12")`) – opcjonalna
-- `version_var`: nazwa zmiennej z wersją testu – opcjonalna (jeśli `NULL`, uruchamiana jest automatyczna heurystyka)
-- `alpha_threshold`: próg rzetelności Alfa Cronbacha (domyślnie `0.70`)
-- `discrimination_min`: minimalna akceptowalna moc dyskryminacyjna itemu (domyślnie `0.30`)
+Trzy pierwsze parametry są wymagane, pozostałe opcjonalne.
+
+| Parametr | Domyślnie | Opis |
+|---|---|---|
+| `output_path` | — | Ścieżka do pliku raportu HTML |
+| `data_path` | — | Ścieżka do pliku z danymi |
+| `item_prefix` | — | Prefiks nazw kolumn z itemami (np. `"mat_"`) |
+| `group_var` | `NULL` | Zmienna grupująca (np. grupa eksperymentalna/kontrolna) |
+| `id_var` | `NULL` | Zmienna z identyfikatorem osoby |
+| `dif_group_var` | `NULL` | Zmienna do analizy DIF (np. `"plec"`) |
+| `exclude_items` | `NULL` | Wektor itemów do wykluczenia (np. `c("mat_5")`) |
+| `version_var` | `NULL` | Zmienna z wersją testu; gdy `NULL`, wersje wykrywane automatycznie |
+| `unified_irt` | `TRUE` | Wspólna kalibracja IRT dla wielu wersji (FIML) |
+| `min_pattern_prop` | `0.05` | Minimalny udział wzorca braków, by uznać go za wersję |
+| `item_missing_max_prop` | `0.90` | Maks. dopuszczalny udział braków w itemie per wersja |
+| `warn_unclassified_prop` | `0.05` | Próg ostrzeżenia o nieprzypisanych obserwacjach |
+| `max_unclassified_prop` | `0.20` | Próg wyłączenia automatycznego podziału na wersje |
+| `alpha_threshold` | `0.70` | Próg rzetelności alfa Cronbacha |
+| `discrimination_min` | `0.30` | Minimalny próg mocy dyskryminacyjnej itemu |
+| `dif_method` | `"logistic"` | Metoda analizy DIF |
+
+### Wspólna kalibracja IRT
+
+Gdy dane zawierają wiele wersji testu (zeszyty rotowane), domyślnie
+(`unified_irt = TRUE`) IRT jest estymowany na pełnej macierzy danych
+— `mirt` obsługuje braki strukturalne przez FIML. Dzięki temu
+parametry itemów są estymowane na całej próbie zamiast na małych
+podgrupach per zeszyt.
+
+CTT i sekwencyjna eliminacja nadal biegną osobno per wersja.
 
 # Struktura projektu
 
-```         
-├── aa-zbie.Rproj
-├── data
-│   └── math_data.rda
-├── inst
-│   └── extdata
-│       └── math_data.csv
-├── renv
-│   ├── activate.R
-│   ├── library
-│   │   └── windows
-│   ├── settings.json
-│   └── staging
-├── renv.lock
-├── reports
-│   └── psychometria_raport.Rmd
-└── R
+```
+├── R/
+│   ├── render_report.R
 │   ├── silnik_psychometria_analizy.R
 │   └── silnik_psychometria_wczytanie_walidacja.R
-└── tests
+├── inst/
+│   ├── extdata/
+│   │   ├── math_data.csv
+│   │   ├── mixed_data.csv
+│   │   └── mixed_data_params.csv
+│   └── reports/
+│       └── psychometria_raport.Rmd
+├── tests/
+│   └── testthat/
+│       ├── test_end2end.R
+│       └── test_poprawki.R
+├── DESCRIPTION
+├── NAMESPACE
+└── README.md
 ```
-
-# Wersja programu
-
-*R version 4.6.0 (2026-04-24 ucrt)*

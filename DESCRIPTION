@@ -1,9 +1,12 @@
 Package: aazbie
-Title: What the Package Does (One Line, Title Case)
-Version: 0.1.0
+Title: Automatyzacja Analiz Psychometrycznych w ZBIE
+Version: 0.2.0
 Authors@R: 
     person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Description: Pakiet do automatycznej analizy psychometrycznej danych
+    testowych. Obsluguje dane binarne (0/1) i politomiczne (0/1/2/...).
+    Wykonuje analizy CTT, IRT (1PL/2PL/3PL, PCM, GPCM), item fit, DIF
+    i generuje raport HTML z wynikami oraz plik Excel.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -18,7 +21,8 @@ Imports:
   haven,
   readxl,
   fs,
-  rmarkdown
+  rmarkdown,
+  knitr
 Suggests:
     testthat
 Config/testthat/edition: 3
