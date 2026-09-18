@@ -809,6 +809,36 @@ make_irt_plots <- function(
 }
 
 
+# Wewnetrzna funkcja pomocnicza: wyciaganie nazw itemow z wynikow mirt
+get_item_labels <- function(fit_result, fallback_items = NULL) {
+
+  fit_df <- as.data.frame(fit_result)
+
+  if ("item" %in% names(fit_df)) {
+    item_labels <- as.character(fit_df$item)
+  } else if ("Item" %in% names(fit_df)) {
+    item_labels <- as.character(fit_df$Item)
+  } else {
+    item_labels <- rownames(fit_df)
+  }
+
+  bad_labels <- is.null(item_labels) ||
+    length(item_labels) != nrow(fit_df) ||
+    any(is.na(item_labels)) ||
+    any(item_labels == "") ||
+    all(item_labels %in% as.character(seq_len(nrow(fit_df))))
+
+  if (
+    bad_labels &&
+      !is.null(fallback_items) &&
+      length(fallback_items) == nrow(fit_df)
+  ) {
+    item_labels <- as.character(fallback_items)
+  }
+
+  item_labels
+}
+
 #' @title Przygotowanie wykresu empirycznego dopasowania IRT
 #'
 #' @description
@@ -883,51 +913,7 @@ make_empirical_icc_plot <- function(
   names(item_max_scores) <- names(data_items)
   item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
 
-    get_item_labels <- function(fit_result, fallback_items = NULL) {
 
-    fit_df <- as.data.frame(fit_result)
-
-    if ("item" %in% names(fit_df)) {
-      item_labels <- as.character(fit_df$item)
-    } else if ("Item" %in% names(fit_df)) {
-      item_labels <- as.character(fit_df$Item)
-    } else {
-      item_labels <- rownames(fit_df)
-    }
-
-    bad_labels <- is.null(item_labels) ||
-      length(item_labels) != nrow(fit_df) ||
-      any(is.na(item_labels)) ||
-      any(item_labels == "") ||
-      all(item_labels %in% as.character(seq_len(nrow(fit_df))))
-
-    if (
-      bad_labels &&
-        !is.null(fallback_items) &&
-        length(fallback_items) == nrow(fit_df)
-    ) {
-      item_labels <- as.character(fallback_items)
-    }
-
-    item_labels
-  }
-
-  sx2_rows_with_missing <- rowSums(is.na(data_items)) > 0
-  sx2_n_total <- nrow(data_items)
-  sx2_n_removed_na <- sum(sx2_rows_with_missing)
-  sx2_n_complete <- sx2_n_total - sx2_n_removed_na
-
-  sx2_na_info <- data.frame(
-    N_total = sx2_n_total,
-    N_complete = sx2_n_complete,
-    N_rows_with_missing = sx2_n_removed_na,
-    Percent_rows_with_missing = ifelse(
-      sx2_n_total > 0,
-      round(100 * sx2_n_removed_na / sx2_n_total, 1),
-      NA_real_
-    ),
-    stringsAsFactors = FALSE
-  )
 
   theta_groups <- cut(
     theta_vals,
@@ -2033,6 +2019,18 @@ run_item_fit <- function(
       ) +
       ggplot2::theme_minimal()
   }
+
+
+  # Informacja o brakach danych dla S-X2
+  sx2_n_total <- nrow(data_items)
+  sx2_n_missing_rows <- sum(rowSums(is.na(data_items)) > 0)
+  sx2_na_info <- data.frame(
+    N_total = sx2_n_total,
+    N_complete = sx2_n_total - sx2_n_missing_rows,
+    N_rows_with_missing = sx2_n_missing_rows,
+    Percent_rows_with_missing = round(100 * sx2_n_missing_rows / max(sx2_n_total, 1), 1),
+    stringsAsFactors = FALSE
+  )
 
   list(
     status = make_status(TRUE, "ok", NA_character_),
