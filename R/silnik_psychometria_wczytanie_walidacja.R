@@ -536,6 +536,11 @@ validate_items_data <- function(raw_data, item_cols) {
 #' @param min_pattern_prop Minimalny udzial wzorca brakow, aby uznac go za wersje.
 #' @param item_missing_max_prop Maksymalny udzial brakow itemu w danej wersji.
 #' @param detected_version_col Nazwa roboczej kolumny z wykryta wersja.
+#' @param warn_unclassified_prop Proporcja obserwacji bez przypisanej wersji,
+#'   powyzej ktorej dodawane jest ostrzezenie. Domyslnie \code{0.05}.
+#' @param max_unclassified_prop Maksymalna proporcja obserwacji bez przypisanej
+#'   wersji przy automatycznym wykrywaniu. Po przekroczeniu tego progu
+#'   podzial na wersje zostaje wylaczony. Domyslnie \code{0.20}.
 #'
 #' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyka.
 #'

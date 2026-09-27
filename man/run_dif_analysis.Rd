@@ -12,7 +12,11 @@ run_dif_analysis(
   group_var = NULL,
   has_groups = FALSE,
   has_versions = FALSE,
-  detected_version_col = "detected_version"
+  detected_version_col = "detected_version",
+  min_group_n = 100,
+  min_items = 3,
+  min_category_n = 5,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -31,12 +35,23 @@ run_dif_analysis(
 \item{has_versions}{Wartosc logiczna informujaca, czy analize wykonac osobno dla wykrytych wersji testu.}
 
 \item{detected_version_col}{Nazwa kolumny w \code{raw_data} zawierajacej wykryta wersje testu.}
+
+\item{min_group_n}{Minimalna liczba osob w kazdej grupie.}
+
+\item{min_items}{Minimalna liczba itemow po filtrowaniu.}
+
+\item{min_category_n}{Minimalna liczebnosc kategorii uzywana w diagnostyce.}
+
+\item{alpha}{Poziom istotnosci uzywany do flagowania DIF.}
 }
 \value{
 Lista zawierajaca status, nazwe zmiennej grupujacej, poziomy grup oraz wyniki analiz DIF dla par grup.
 }
 \description{
-Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej, osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej,
+osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+Funkcja przekazuje do analizy informacje o typie itemow i maksymalnych
+wynikach itemow, jezeli sa dostepne w wynikach IRT.
 }
 \examples{
 # run_dif_analysis(raw_data, items_data, list(all = irt), dif_group_var = "plec")

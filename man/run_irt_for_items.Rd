@@ -8,7 +8,13 @@ run_irt_for_items(
   data_items,
   label = "Caly test",
   show_plots = TRUE,
-  show_empirical_icc = TRUE
+  show_empirical_icc = TRUE,
+  item_type = "auto",
+  item_max_scores = NULL,
+  run_optional_2pl_gpcm = TRUE,
+  min_n_2pl_gpcm = 300,
+  observations_per_parameter = 10,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -18,13 +24,29 @@ run_irt_for_items(
 
 \item{show_plots}{Wartosc logiczna okreslajaca, czy przygotowac obiekty wykresow IRT.}
 
-\item{show_empirical_icc}{Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.}
+\item{show_empirical_icc}{Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania.}
+
+\item{item_type}{Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.}
+
+\item{item_max_scores}{Opcjonalny named vector z maksymalnym wynikiem per item.}
+
+\item{run_optional_2pl_gpcm}{Wartosc logiczna. Czy dla itemow politomicznych/mieszanych probowac estymowac model 2PL-GPCM.}
+
+\item{min_n_2pl_gpcm}{Minimalna liczba osob potrzebna do estymacji modelu 2PL-GPCM.}
+
+\item{observations_per_parameter}{Minimalna liczba obserwacji na jeden wolny parametr w modelu 2PL-GPCM.}
+
+\item{alpha}{Poziom istotnosci uzywany przy porownaniu modeli.}
 }
 \value{
 Lista zawierajaca status, modele IRT, porownania modeli, parametry itemow, wyniki theta, wykresy i dane uzyte w analizie.
 }
 \description{
-Dopasowuje modele IRT 1PL, 2PL oraz opcjonalnie 3PL, porownuje ich dopasowanie, wybiera model preferowany na podstawie testow LRT i zwraca parametry itemow, wyniki theta oraz obiekty wykresow.
+Dopasowuje modele IRT odpowiednie dla typu danych.
+Dla itemow binarnych estymuje modele 1PL, 2PL oraz opcjonalnie 3PL.
+Dla itemow politomicznych lub mieszanych, przeznaczonych do testow wiedzy
+z punktacja czesciowa, estymuje model Rasch-PCM oraz opcjonalny model
+2PL-GPCM z wolnymi dyskryminacjami.
 }
 \examples{
 # run_irt_for_items(data_items, "Caly test", show_plots = FALSE)

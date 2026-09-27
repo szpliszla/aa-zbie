@@ -9,7 +9,8 @@ run_item_fit(
   label = "Caly test",
   run_pvq1 = FALSE,
   pvq1_n_max = 500,
-  pvq1_items_max = 30
+  pvq1_items_max = 30,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -22,12 +23,18 @@ run_item_fit(
 \item{pvq1_n_max}{Maksymalna liczba obserwacji, dla ktorej obliczana jest PV-Q1*.}
 
 \item{pvq1_items_max}{Maksymalna liczba itemow, dla ktorej obliczana jest PV-Q1*.}
+
+\item{alpha}{Poziom istotnosci uzywany do flagowania niedopasowania S-X2.}
 }
 \value{
-Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze statystykami, status PV-Q1* oraz obiekt wykresu.
+Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze
+statystykami, status PV-Q1* oraz obiekt wykresu.
 }
 \description{
-Oblicza statystyki dopasowania itemow dla wybranego modelu IRT, w tym S-X2 oraz infit/outfit, a opcjonalnie takze PV-Q1*. Funkcja zwraca tabele i wykresy bez ich wyswietlania.
+Oblicza statystyki dopasowania itemow dla wybranego modelu IRT.
+Funkcja obsluguje modele binarne oraz modele partial-credit dla itemow
+punktowanych politomicznie. Zwraca statystyke S-X2, opcjonalnie infit/outfit
+oraz wykres diagnostyczny, bez wypisywania wynikow do konsoli.
 }
 \examples{
 # irt <- run_irt_for_items(data_items, show_plots = FALSE)

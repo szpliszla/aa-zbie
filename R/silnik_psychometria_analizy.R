@@ -1532,11 +1532,11 @@ run_irt_for_items <- function(
         x2_col <- grep("^X2$", names(lrt_result), value = TRUE)[1]
 
         if (!is.na(p_col)) {
-          lrt_p <- as.numeric(tail(lrt_result[[p_col]], 1))
+          lrt_p <- as.numeric(utils::tail(lrt_result[[p_col]], 1))
         }
 
         if (!is.na(x2_col)) {
-          lrt_chi2 <- as.numeric(tail(lrt_result[[x2_col]], 1))
+          lrt_chi2 <- as.numeric(utils::tail(lrt_result[[x2_col]], 1))
         }
 
         if ("df" %in% names(lrt_result) && nrow(lrt_result) >= 2) {

@@ -22,7 +22,6 @@ Imports:
   readxl,
   fs,
   rmarkdown,
-  knitr
 Suggests:
     testthat,
     kableExtra

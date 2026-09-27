@@ -12,10 +12,16 @@ validate_items_data(raw_data, item_cols)
 \item{item_cols}{Wektor nazw kolumn z itemami}
 }
 \value{
-Lista z informacjami o problemach walidacyjnych
+Lista z oczyszczonymi danymi itemowymi, diagnostykami walidacyjnymi
+oraz klasyfikacja typu itemow (\code{item_type}, \code{item_max_scores},
+\code{n_categories}).
 }
 \description{
-Sprawdza typ danych, binarnosc itemow oraz wariancje
+Sprawdza typ danych, klasyfikuje itemy jako binarne lub
+politomiczne i weryfikuje wariancje. Itemy z prawidlowym kodowaniem
+(kolejne liczby calkowite od 0 do max) sa zachowywane niezaleznie od
+liczby kategorii. Itemy z niecalkowitymi, ujemnymi lub niespojnymi
+wartosciami sa wykluczane.
 }
 \details{
 Funkcja jest czysta wzgledem srodowiska zewnetrznego: nie zapisuje
