@@ -6,7 +6,7 @@
 \usage{
 run_ctt_for_items(
   data_items,
-  label = "Caly test",
+  label = t("common.whole_test"),
   correlation_threshold_negative = 0,
   item_max_scores = NULL
 )

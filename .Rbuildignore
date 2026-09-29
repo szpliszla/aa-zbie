@@ -4,6 +4,9 @@
 ^\.Rproj\.user$
 ^\.github$
 ^LICENSE.md$
-
-
 ^raport\.html$
+^raport_files$
+
+^inst/reports/.*\.html$
+^inst/reports/.*\.xlsx$
+^inst/reports/.*_files$

@@ -4,7 +4,7 @@
 \alias{make_ctt_plot}
 \title{Przygotowanie wykresu jakosci itemow CTT}
 \usage{
-make_ctt_plot(item_stats, label = "Caly test")
+make_ctt_plot(item_stats, label = t("common.whole_test"))
 }
 \arguments{
 \item{item_stats}{Ramka danych ze statystykami itemow, zawierajaca co najmniej kolumny \code{Item}, \code{Trudnosc_p}, \code{r_cor} i \code{Ocena}.}

@@ -1,12 +1,12 @@
 # ============================================================================
-# FUNKCJE POMOCNICZE - ANALIZY PSYCHOMETRYCZNE
+# HELPER FUNCTIONS - PSYCHOMETRIC ANALYSES
 # ============================================================================
 
 
-# Pakiety wymagane przez funkcje w tym pliku.
-# Blok nie jest wykonywany, ale zostawia jawne deklaracje zaleznosci dla renv.
-# W kodzie funkcji uzywamy wywolan z przestrzenia nazw, np. psych::alpha(),
-# zeby nie ladowac calych pakietow do sciezki wyszukiwania przez library().
+# Packages required by the functions in this file.
+# This block is never executed; it declares dependencies explicitly for renv.
+# Function code uses namespace-qualified calls, e.g. psych::alpha(),
+# so that whole packages are not attached to the search path via library().
 if (FALSE) {
   library(psych)
   library(ggplot2)
@@ -57,11 +57,11 @@ make_status <- function(ok = TRUE, code = NA_character_, message = NA_character_
 #' @export
 interpret_alpha <- function(alpha_val) {
   if (is.na(alpha_val)) return(NA_character_)
-  if (alpha_val >= 0.9) return("Doskonala")
-  if (alpha_val >= 0.8) return("Dobra")
-  if (alpha_val >= 0.7) return("Akceptowalna")
-  if (alpha_val >= 0.6) return("Watpliwa")
-  "Niska"
+  if (alpha_val >= 0.9) return(t("ctt.reliability_excellent"))
+  if (alpha_val >= 0.8) return(t("ctt.reliability_good"))
+  if (alpha_val >= 0.7) return(t("ctt.reliability_acceptable"))
+  if (alpha_val >= 0.6) return(t("ctt.reliability_questionable"))
+  t("ctt.reliability_low")
 }
 
 #' @title Interpretacja wspolczynnika omega McDonalda
@@ -78,9 +78,9 @@ interpret_alpha <- function(alpha_val) {
 #' @export
 interpret_omega <- function(omega_val) {
   if (is.na(omega_val)) return(NA_character_)
-  if (omega_val >= 0.8) return("Dobra")
-  if (omega_val >= 0.7) return("Akceptowalna")
-  "Niska"
+  if (omega_val >= 0.8) return(t("ctt.reliability_good"))
+  if (omega_val >= 0.7) return(t("ctt.reliability_acceptable"))
+  t("ctt.reliability_low")
 }
 
 #' @title Przygotowanie bezpiecznej nazwy arkusza Excel
@@ -145,7 +145,7 @@ z_score <- function(x) {
 #' make_ctt_plot(df, "Przyklad")
 #'
 #' @export
-make_ctt_plot <- function(item_stats, label = "Caly test") {
+make_ctt_plot <- function(item_stats, label = t("common.whole_test")) {
   ggplot2::ggplot(item_stats, ggplot2::aes(x = .data$Trudnosc_p, y = .data$r_cor)) +
     ggplot2::geom_point(ggplot2::aes(color = .data$Ocena), size = 3) +
     ggplot2::geom_text(ggplot2::aes(label = .data$Item), size = 2.5, vjust = -1, alpha = 0.7) +
@@ -154,16 +154,16 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", alpha = 0.5) +
     ggplot2::scale_x_continuous(limits = c(0, 1)) +
     ggplot2::labs(
-      title = paste("Mapa jakosci itemow CTT -", label),
-      x = "Trudnosc (p)",
-      y = "Korelacja item-test (r.cor)",
-      color = "Ocena"
+      title = paste(t("ctt.plot_title"), "-", label),
+      x = t("ctt.difficulty_label"),
+      y = t("ctt.plot_y"),
+      color = t("col.Ocena")
     ) +
     ggplot2::theme_minimal()
 }
 
 # ============================================================================
-# ANALIZA CTT
+# CTT ANALYSIS
 # ============================================================================
 
 #' @title Analiza klasycznej teorii testów (CTT) dla zestawu itemow
@@ -186,7 +186,7 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 #' @export
 run_ctt_for_items <- function(
     data_items,
-    label = "Caly test",
+    label = t("common.whole_test"),
     correlation_threshold_negative = 0,
     item_max_scores = NULL
 ) {
@@ -200,7 +200,7 @@ run_ctt_for_items <- function(
 
   if (ncol(data_items) < 3) {
     return(list(
-      status = make_status(FALSE, "too_few_items", "Za malo itemow do analizy CTT (minimum 3)."),
+      status = make_status(FALSE, "too_few_items", t("ctt.msg.too_few_items")),
       label = label,
       zero_variance_items = zero_var,
       data_items = data_items
@@ -212,7 +212,7 @@ run_ctt_for_items <- function(
 
   if (nrow(data_items) < 10) {
     return(list(
-      status = make_status(FALSE, "too_few_observations", "Za malo obserwacji do analizy CTT (minimum 10)."),
+      status = make_status(FALSE, "too_few_observations", t("ctt.msg.too_few_observations")),
       label = label,
       zero_variance_items = zero_var,
       data_items = data_items
@@ -220,14 +220,14 @@ run_ctt_for_items <- function(
   }
 
   observed_matrix <- !is.na(as.matrix(data_items))
-  pairwise_n <- t(observed_matrix) %*% observed_matrix
+  pairwise_n <- base::t(observed_matrix) %*% observed_matrix
 
   if (any(pairwise_n < 3)) {
     return(list(
       status = make_status(
         FALSE,
         "too_few_pairwise_observations",
-        "Za malo wspolnych obserwacji dla co najmniej jednej pary itemow. Alpha Cronbacha nie zostala obliczona."
+        t("ctt.msg.too_few_pairwise")
       ),
       label = label,
       zero_variance_items = zero_var,
@@ -246,7 +246,7 @@ run_ctt_for_items <- function(
       status = make_status(
         FALSE,
         "invalid_correlation_matrix",
-        "Macierz korelacji jest niepoprawna. Alpha Cronbacha nie zostala obliczona."
+        t("ctt.msg.invalid_correlation")
       ),
       label = label,
       zero_variance_items = zero_var,
@@ -277,7 +277,7 @@ run_ctt_for_items <- function(
   alpha_val <- alpha_result$total$raw_alpha
 
   reliability_df <- data.frame(
-    Wskaznik = c("Alpha Cronbacha", "Omega McDonalda"),
+    Wskaznik = c(t("ctt.alpha_label"), t("ctt.omega_label")),
     Wartosc = c(round(alpha_val, 3), round(omega_val, 3)),
     Interpretacja = c(interpret_alpha(alpha_val), interpret_omega(omega_val)),
     stringsAsFactors = FALSE
@@ -285,7 +285,7 @@ run_ctt_for_items <- function(
 
   reliability_df <- reliability_df[!is.na(reliability_df$Wartosc), , drop = FALSE]
 
-  # Oblicz maksymalne wyniki per item (dla normalizacji trudnosci)
+  # Compute the maximum score per item (for difficulty normalisation)
   if (is.null(item_max_scores)) {
     item_max_scores <- sapply(data_items, max, na.rm = TRUE)
   } else {
@@ -307,12 +307,12 @@ run_ctt_for_items <- function(
   )
 
   item_stats$Ocena <- ""
-  item_stats$Ocena[item_stats$r_cor < 0] <- "USUN (ujemna korelacja)"
-  item_stats$Ocena[item_stats$r_cor >= 0 & item_stats$r_cor < 0.10] <- "Slaby"
-  item_stats$Ocena[item_stats$r_cor >= 0.10 & item_stats$r_cor < 0.20] <- "Watpliwy"
-  item_stats$Ocena[item_stats$r_cor >= 0.20 & item_stats$r_cor < 0.30] <- "Akceptowalny"
-  item_stats$Ocena[item_stats$r_cor >= 0.30] <- "Dobry"
-  item_stats$Ocena[is.na(item_stats$r_cor)] <- "Brak danych"
+  item_stats$Ocena[item_stats$r_cor < 0] <- t("ctt.rating_remove")
+  item_stats$Ocena[item_stats$r_cor >= 0 & item_stats$r_cor < 0.10] <- t("ctt.rating_weak")
+  item_stats$Ocena[item_stats$r_cor >= 0.10 & item_stats$r_cor < 0.20] <- t("ctt.rating_questionable")
+  item_stats$Ocena[item_stats$r_cor >= 0.20 & item_stats$r_cor < 0.30] <- t("ctt.rating_acceptable")
+  item_stats$Ocena[item_stats$r_cor >= 0.30] <- t("ctt.rating_good")
+  item_stats$Ocena[is.na(item_stats$r_cor)] <- t("ctt.rating_no_data")
 
   ocena_counts <- as.data.frame(table(Ocena = item_stats$Ocena), stringsAsFactors = FALSE)
   names(ocena_counts)[2] <- "Liczba_itemow"
@@ -338,7 +338,7 @@ run_ctt_for_items <- function(
 }
 
 # ============================================================================
-# SEKWENCYJNA ELIMINACJA ITEMOW
+# SEQUENTIAL ITEM ELIMINATION
 # ============================================================================
 
 #' @title Sekwencyjna eliminacja itemow wedlug korelacji item-test
@@ -361,14 +361,14 @@ run_ctt_for_items <- function(
 #' @export
 sequential_elimination <- function(
     data_items,
-    label = "Caly test",
+    label = t("common.whole_test"),
     thresholds = c(0, 0.10, 0.15),
     alpha_timeout = 120
 ) {
 
   if (ncol(data_items) < 3) {
     return(list(
-      status = make_status(FALSE, "too_few_items", "Za malo itemow do sekwencyjnej eliminacji (minimum 3)."),
+      status = make_status(FALSE, "too_few_items", t("ctt.msg.elimination_too_few_items")),
       label = label,
       steps = data.frame(),
       remaining_items = names(data_items),
@@ -401,15 +401,15 @@ sequential_elimination <- function(
   alpha_timed_out <- FALSE
 
   default_step_names <- c(
-    "Ujemne korelacje (r <= 0)",
-    "Bardzo niska korelacja (r <= 0.10)",
-    "Niska korelacja (r <= 0.15)"
+    t("ctt.step_negative"),
+    t("ctt.step_very_low"),
+    t("ctt.step_low")
   )
 
   step_names <- if (length(thresholds) <= length(default_step_names)) {
     default_step_names[seq_along(thresholds)]
   } else {
-    paste0("Korelacja r <= ", thresholds)
+    sprintf(t("ctt.step_custom"), thresholds)
   }
 
   for (s in seq_along(thresholds)) {
@@ -457,7 +457,7 @@ sequential_elimination <- function(
 
     if (!is.null(alpha_final) && !inherits(alpha_final, "alpha_timeout")) {
       steps[[length(steps) + 1]] <- data.frame(
-        Krok = "Po eliminacji",
+        Krok = t("ctt.step_after"),
         Threshold = NA_real_,
         N_itemow = ncol(current_data),
         Alpha = alpha_final$total$raw_alpha,
@@ -475,10 +475,7 @@ sequential_elimination <- function(
     make_status(
       FALSE,
       "alpha_timeout",
-      paste0(
-        "Obliczanie alpha Cronbacha przekroczylo limit czasu (",
-        alpha_timeout, " s). Eliminacja zostala przerwana."
-      )
+      sprintf(t("ctt.msg.alpha_timeout"), alpha_timeout)
     )
   } else {
     make_status(TRUE, "ok", NA_character_)
@@ -495,7 +492,7 @@ sequential_elimination <- function(
 }
 
 # ============================================================================
-# PARAMETRY IRT
+# IRT PARAMETERS
 # ============================================================================
 
 #' @title Przygotowanie tabeli parametrow IRT
@@ -572,7 +569,7 @@ make_params_table <- function(model, model_name = NA_character_) {
     cols[order(suppressWarnings(as.integer(suffix)))]
   }
 
-  # Dyskryminacja: w zaleznosci od modelu mirt moze zwrocic "a" albo "a1".
+  # Discrimination: depending on the model, mirt may return "a" or "a1".
   a_cols <- c(
     intersect("a", names(item_params)),
     intersect("a1", names(item_params)),
@@ -583,8 +580,8 @@ make_params_table <- function(model, model_name = NA_character_) {
 
   params_df$a_dyskryminacja <- round(extract_numeric(a_col), 3)
 
-  # Trudnosc/progi: modele binarne zwykle maja jedno "b",
-  # a modele politomiczne wiele progow: b1, b2, b3...
+  # Difficulty/thresholds: binary models usually have a single "b",
+  # while polytomous models have multiple thresholds: b1, b2, b3...
   b_cols <- grep("^b[0-9]*$", names(item_params), value = TRUE)
   b_cols <- order_parameter_columns(b_cols, "b")
 
@@ -600,8 +597,8 @@ make_params_table <- function(model, model_name = NA_character_) {
 
   } else {
 
-    # Awaryjnie: gdy mirt nie zwroci b/b1/b2 przy IRTpars = TRUE,
-    # zachowujemy parametry d1, d2, ... jako parametry techniczne.
+    # Fallback: if mirt does not return b/b1/b2 with IRTpars = TRUE,
+    # keep d1, d2, ... as technical parameters.
     d_cols <- grep("^d[0-9]*$", names(item_params), value = TRUE)
     d_cols <- order_parameter_columns(d_cols, "d")
 
@@ -614,53 +611,53 @@ make_params_table <- function(model, model_name = NA_character_) {
     }
   }
 
-  # Zgadywanie: zwykle tylko dla 3PL.
+  # Guessing: usually only for 3PL.
   params_df$g_zgadywanie <- if ("g" %in% names(item_params)) {
     round(extract_numeric("g"), 3)
   } else {
     NA_real_
   }
 
-  # Gorna asymptota, jesli model ja zwraca.
+  # Upper asymptote, if the model returns it.
   if ("u" %in% names(item_params)) {
     params_df$u_gorna_asymptota <- round(extract_numeric("u"), 3)
   }
 
-  # Ocena dyskryminacji.
+  # Discrimination rating.
   params_df$Ocena_a <- NA_character_
 
   has_a <- !is.na(params_df$a_dyskryminacja)
 
   params_df$Ocena_a[
     has_a & params_df$a_dyskryminacja < 0.20
-  ] <- "Bardzo slaby"
+  ] <- t("irt.rating_very_weak")
 
   params_df$Ocena_a[
     has_a &
       params_df$a_dyskryminacja >= 0.20 &
       params_df$a_dyskryminacja < 0.50
-  ] <- "Slaby"
+  ] <- t("irt.rating_weak")
 
   params_df$Ocena_a[
     has_a &
       params_df$a_dyskryminacja >= 0.50 &
       params_df$a_dyskryminacja < 0.80
-  ] <- "Umiarkowany"
+  ] <- t("irt.rating_moderate")
 
   params_df$Ocena_a[
     has_a &
       params_df$a_dyskryminacja >= 0.80 &
       params_df$a_dyskryminacja < 1.50
-  ] <- "Dobry"
+  ] <- t("irt.rating_good")
 
   params_df$Ocena_a[
     has_a & params_df$a_dyskryminacja >= 1.50
-  ] <- "Bardzo dobry"
+  ] <- t("irt.rating_very_good")
 
 
-  # W modelach 1PL / Rasch_PCM dyskryminacja jest ustalona, nie oceniamy jej
+  # In 1PL / Rasch_PCM models discrimination is fixed, so it is not rated
   if (grepl("1PL|Rasch", model_name, ignore.case = TRUE)) {
-    params_df$Ocena_a[has_a] <- "Ustalone (1PL)"
+    params_df$Ocena_a[has_a] <- t("irt.rating_fixed_1pl")
   }
   params_df
 }
@@ -707,7 +704,7 @@ make_irt_plots <- function(
       preferred_model,
       type = "info",
       facet_items = FALSE,
-      main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
+      main = paste(t("irt.plot.tif_title"), "-", label, "-", preferred_name)
     ),
     error = function(e) {
       plot_status$test_information <<- conditionMessage(e)
@@ -718,7 +715,7 @@ make_irt_plots <- function(
   trace_label <- if (item_type == "binary") {
     "ICC"
   } else {
-    "Krzywe kategorii punktowych"
+    t("irt.plot.category_curves")
   }
 
   n_per_plot <- min(ncol(data_items), 12)
@@ -741,10 +738,8 @@ make_irt_plots <- function(
             label,
             "-",
             preferred_name,
-            "- itemy",
-            start_idx,
-            "do",
-            end_idx
+            "-",
+            sprintf(t("irt.plot.items_range"), start_idx, end_idx)
           ),
           facet_items = TRUE,
           auto.key = list(points = FALSE, lines = TRUE)
@@ -787,13 +782,13 @@ make_irt_plots <- function(
         linewidth = 1
       ) +
       ggplot2::labs(
-        title = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
-        x = "Zdolnosc (theta)",
-        y = "Liczba osob"
+        title = paste(t("irt.plot.theta_title"), "-", label, "-", preferred_name),
+        x = t("irt.plot.theta_x"),
+        y = t("irt.plot.theta_y")
       ) +
       ggplot2::theme_minimal()
   } else {
-    plot_status$theta_histogram <- "Brak skonczonych wartosci theta."
+    plot_status$theta_histogram <- t("irt.msg.no_finite_theta")
     NULL
   }
 
@@ -809,7 +804,7 @@ make_irt_plots <- function(
 }
 
 
-# Wewnetrzna funkcja pomocnicza: wyciaganie nazw itemow z wynikow mirt
+# Internal helper: extract item names from mirt results
 get_item_labels <- function(fit_result, fallback_items = NULL) {
 
   fit_df <- as.data.frame(fit_result)
@@ -867,7 +862,7 @@ make_empirical_icc_plot <- function(
     model,
     data_items,
     theta_vals,
-    label = "Caly test",
+    label = t("common.whole_test"),
     model_name = "IRT",
     item_max_scores = NULL
 ) {
@@ -1006,9 +1001,9 @@ make_empirical_icc_plot <- function(
   predicted_df <- do.call(rbind, predicted_list)
 
   y_label <- if (all(item_max_scores <= 1)) {
-    "P(poprawnej)"
+    t("irt.plot.p_correct")
   } else {
-    "Oczekiwany wynik itemu (0-1)"
+    t("irt.plot.expected_score")
   }
 
   ggplot2::ggplot() +
@@ -1025,14 +1020,14 @@ make_empirical_icc_plot <- function(
     ggplot2::facet_wrap(ggplot2::vars(.data$item)) +
     ggplot2::coord_cartesian(ylim = c(0, 1)) +
     ggplot2::labs(
-      title = paste("Empiryczne dopasowanie -", label, "-", model_name),
+      title = paste(t("irt.plot.empirical_title"), "-", label, "-", model_name),
       x = "Theta",
       y = y_label
     ) +
     ggplot2::theme_minimal()
 }
 # ============================================================================
-# ANALIZA IRT
+# IRT ANALYSIS
 # ============================================================================
 
 #' @title Analiza IRT dla zestawu itemow
@@ -1063,7 +1058,7 @@ make_empirical_icc_plot <- function(
 #' @export
 run_irt_for_items <- function(
     data_items,
-    label = "Caly test",
+    label = t("common.whole_test"),
     show_plots = TRUE,
     show_empirical_icc = TRUE,
     item_type = "auto",
@@ -1092,7 +1087,7 @@ run_irt_for_items <- function(
       status = make_status(
         FALSE,
         "too_few_data",
-        "Za malo danych do analizy IRT (min. 3 itemy, 50 osob)."
+        t("irt.msg.too_few_data")
       ),
       label = label,
       data_items = data_items
@@ -1186,7 +1181,7 @@ run_irt_for_items <- function(
   }
 
   # ---------------------------------------------------------------
-  # Sciezka binarna: 1PL / 2PL / 3PL
+  # Binary path: 1PL / 2PL / 3PL
   # ---------------------------------------------------------------
 
   if (item_type == "binary") {
@@ -1332,6 +1327,10 @@ run_irt_for_items <- function(
       list()
     }
 
+    # The report template expects a `selected` column (as in the polytomous path)
+    comparison_df$selected <- comparison_df$Model ==
+      paste0("model_", tolower(preferred_name))
+
     return(list(
       status = make_status(TRUE, "ok", NA_character_),
       label = label,
@@ -1353,12 +1352,13 @@ run_irt_for_items <- function(
       anova = anova_result,
       lrt = lrt_df,
       plots = plots,
-      data_items = data_items
+      data_items = data_items,
+      kept_rows = complete_rows
     ))
   }
 
   # ---------------------------------------------------------------
-  # Sciezka politomiczna / mieszana: Rasch-PCM / 2PL-GPCM
+  # Polytomous / mixed path: Rasch-PCM / 2PL-GPCM
   # ---------------------------------------------------------------
 
   itemtype_vector <- ifelse(
@@ -1419,7 +1419,7 @@ run_irt_for_items <- function(
       status = make_status(
         FALSE,
         "model_rasch_pcm_not_converged",
-        "Model Rasch-PCM nie osiagnal zbieznosci."
+        t("irt.msg.rasch_pcm_not_converged")
       ),
       label = label,
       item_type = item_type,
@@ -1665,6 +1665,8 @@ run_irt_for_items <- function(
     lrt = lrt_df,
     plots = plots,
     data_items = data_items,
+    # input data rows kept in data_items (without empty rows)
+    kept_rows = complete_rows,
 
     params_rasch_pcm_df = params_rasch_pcm_df,
     params_2pl_gpcm_df = params_2pl_gpcm_df,
@@ -1683,6 +1685,168 @@ run_irt_for_items <- function(
 # ITEM FIT
 # ============================================================================
 
+# ----------------------------------------------------------------------------
+# S-X2: helper functions
+# ----------------------------------------------------------------------------
+
+# S-X2 table from mirt::itemfit() output; NULL if expected columns are missing.
+sx2_table <- function(sx2_result, item_max_scores, items) {
+  sx2_col <- grep("S_X2|S-X2", names(sx2_result), value = TRUE)[1]
+  df_col <- grep("^df$|df", names(sx2_result), value = TRUE)[1]
+  p_col <- grep("^p$|^p\\.", names(sx2_result), value = TRUE)[1]
+
+  if (is.na(sx2_col) || is.na(df_col) || is.na(p_col)) {
+    return(NULL)
+  }
+
+  sx2_items <- get_item_labels(sx2_result, fallback_items = items)
+
+  data.frame(
+    Item = sx2_items,
+    Max_score = as.numeric(item_max_scores[sx2_items]),
+    S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
+    df = as.numeric(sx2_result[[df_col]]),
+    p = round(as.numeric(sx2_result[[p_col]]), 4),
+    RMSEA = if ("RMSEA.S_X2" %in% names(sx2_result)) {
+      round(as.numeric(sx2_result[["RMSEA.S_X2"]]), 3)
+    } else {
+      NA_real_
+    },
+    stringsAsFactors = FALSE
+  )
+}
+
+# S-X2 for a subset of persons and items with parameters fixed at the values
+# from `model` (TOL = NaN skips estimation). The `est` flags are copied so
+# that the S-X2 df account for parameters estimated in the joint calibration -
+# on the full data the result is identical to mirt::itemfit(model).
+sx2_fixed_pars <- function(model, data_sub) {
+  items <- colnames(data_sub)
+  itemtype <- stats::setNames(
+    mirt::extract.mirt(model, "itemtype"),
+    colnames(mirt::extract.mirt(model, "data"))
+  )[items]
+
+  values_model <- mirt::mod2values(model)
+  values_sub <- mirt::mirt(
+    data_sub, 1,
+    itemtype = unname(itemtype),
+    pars = "values"
+  )
+
+  idx <- match(
+    paste(values_sub$item, values_sub$name),
+    paste(values_model$item, values_model$name)
+  )
+  if (anyNA(idx)) {
+    stop(t("item_fit.msg.sx2_pars_mismatch"), call. = FALSE)
+  }
+
+  values_sub$value <- values_model$value[idx]
+  values_sub$est <- values_model$est[idx]
+
+  model_sub <- mirt::mirt(
+    data_sub, 1,
+    itemtype = unname(itemtype),
+    pars = values_sub,
+    TOL = NaN,
+    verbose = FALSE
+  )
+
+  mirt::itemfit(model_sub, fit_stats = "S_X2", na.rm = TRUE)
+}
+
+# Test versions aligned with the rows of irt_result$data_items. `versions` may
+# correspond to the rows of the data passed to run_irt_for_items() (before
+# dropping empty rows) or to the rows of data_items.
+align_row_versions <- function(versions, irt_result) {
+  if (is.null(versions)) {
+    return(NULL)
+  }
+
+  versions <- as.character(versions)
+  kept_rows <- irt_result$kept_rows
+
+  if (!is.null(kept_rows) && length(versions) == length(kept_rows)) {
+    return(versions[kept_rows])
+  }
+  if (length(versions) != nrow(irt_result$data_items)) {
+    stop(t("item_fit.msg.versions_length"), call. = FALSE)
+  }
+  versions
+}
+
+# S-X2 separately in each test version: persons from that version, items of
+# that version, parameters from the joint calibration.
+run_sx2_by_version <- function(model, data_items, row_versions,
+                               version_items, item_max_scores) {
+
+  version_labels <- unique(row_versions[!is.na(row_versions)])
+  if (!is.null(version_items)) {
+    version_labels <- c(
+      intersect(names(version_items), version_labels),
+      setdiff(version_labels, names(version_items))
+    )
+  }
+
+  tables <- list()
+  results <- list()
+  info <- list()
+
+  for (v in version_labels) {
+
+    data_v <- data_items[which(row_versions == v), , drop = FALSE]
+
+    items_v <- if (!is.null(version_items[[v]])) {
+      intersect(version_items[[v]], colnames(data_v))
+    } else {
+      colnames(data_v)[colSums(!is.na(data_v)) > 0]
+    }
+    data_v <- data_v[, items_v, drop = FALSE]
+    n_complete <- sum(stats::complete.cases(data_v))
+
+    res <- if (n_complete == 0) {
+      simpleError(t("item_fit.msg.sx2_version_no_complete_rows"))
+    } else {
+      tryCatch(sx2_fixed_pars(model, data_v), error = function(e) e)
+    }
+
+    table_v <- NULL
+    message_v <- NA_character_
+
+    if (inherits(res, "error")) {
+      message_v <- conditionMessage(res)
+    } else {
+      table_v <- sx2_table(res, item_max_scores, items_v)
+      if (is.null(table_v)) {
+        message_v <- "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
+      } else {
+        tables[[v]] <- data.frame(Wersja = v, table_v, stringsAsFactors = FALSE)
+        results[[v]] <- res
+      }
+    }
+
+    n_missing <- nrow(data_v) - n_complete
+    info[[v]] <- data.frame(
+      Wersja = v,
+      N_total = nrow(data_v),
+      N_complete = n_complete,
+      N_rows_with_missing = n_missing,
+      Percent_rows_with_missing = round(100 * n_missing / max(nrow(data_v), 1), 1),
+      ok = !is.null(table_v),
+      message = message_v,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  table <- if (length(tables) > 0) do.call(rbind, unname(tables)) else NULL
+  if (!is.null(table)) rownames(table) <- NULL
+  info <- do.call(rbind, unname(info))
+  rownames(info) <- NULL
+
+  list(table = table, results = results, info = info)
+}
+
 #' @title Analiza dopasowania itemow w modelu IRT
 #'
 #' @description
@@ -1697,9 +1861,20 @@ run_irt_for_items <- function(
 #' @param pvq1_n_max Maksymalna liczba obserwacji, dla ktorej obliczana jest PV-Q1*.
 #' @param pvq1_items_max Maksymalna liczba itemow, dla ktorej obliczana jest PV-Q1*.
 #' @param alpha Poziom istotnosci uzywany do flagowania niedopasowania S-X2.
+#' @param versions Opcjonalny wektor wersji testu, po jednej wartosci na kazdy
+#'   wiersz danych przekazanych do `run_irt_for_items()` (`NA` = osoba bez
+#'   przypisanej wersji). Gdy wskazano co najmniej dwie wersje, S-X2 jest
+#'   liczone osobno w kazdej wersji, na jej itemach, z parametrami ze wspolnej
+#'   kalibracji. Korekta Holma obejmuje lacznie wszystkie itemy i wersje.
+#' @param version_items Opcjonalna nazwana lista itemow kazdej wersji (np.
+#'   `version_items` z `detect_test_versions()`). Domyslnie itemy, na ktore
+#'   odpowiedziala co najmniej jedna osoba z danej wersji.
 #'
 #' @return Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze
-#' statystykami, status PV-Q1* oraz obiekt wykresu.
+#' statystykami, status PV-Q1* oraz obiekt wykresu. Przy S-X2 liczonym osobno
+#' w wersjach `sx2_df` i `sx2_na_info` maja kolumne `Wersja`, `sx2` jest lista
+#' wynikow `mirt::itemfit()` dla wersji, a `sx2_version_status` opisuje status
+#' kazdej wersji.
 #'
 #' @examples
 #' # irt <- run_irt_for_items(data_items, show_plots = FALSE)
@@ -1712,7 +1887,9 @@ run_item_fit <- function(
     run_pvq1 = FALSE,
     pvq1_n_max = 500,
     pvq1_items_max = 30,
-    alpha = 0.05
+    alpha = 0.05,
+    versions = NULL,
+    version_items = NULL
 ) {
 
   if (
@@ -1752,73 +1929,104 @@ run_item_fit <- function(
   # S-X2
   # ---------------------------------------------------------------
 
-  sx2_result <- tryCatch(
-    mirt::itemfit(
-      model,
-      fit_stats = "S_X2",
-      na.rm = TRUE
-    ),
-    error = function(e) e
-  )
-  
   sx2_df <- NULL
   sx2_status <- make_status(TRUE, "ok", NA_character_)
+  sx2_result <- NULL
+  sx2_na_info <- NULL
+  sx2_version_status <- NULL
 
-  if (inherits(sx2_result, "error")) {
+  row_versions <- align_row_versions(versions, irt_result)
+  by_version <- !is.null(row_versions) &&
+    length(unique(row_versions[!is.na(row_versions)])) > 1
 
+  if (by_version) {
+
+    # Multiple test versions: S-X2 separately in each version, on its items,
+    # with parameters from the joint calibration
+    sx2_versions <- run_sx2_by_version(
+      model, data_items, row_versions, version_items, item_max_scores
+    )
+    sx2_result <- sx2_versions$results
+    sx2_df <- sx2_versions$table
+    sx2_na_info <- sx2_versions$info[
+      , setdiff(names(sx2_versions$info), c("ok", "message"))
+    ]
+    sx2_version_status <- sx2_versions$info[, c("Wersja", "ok", "message")]
+
+    failed <- !sx2_version_status$ok
+    if (any(failed)) {
+      sx2_status <- make_status(
+        !all(failed),
+        if (all(failed)) "sx2_error" else "sx2_partial",
+        sprintf(
+          t("item_fit.msg.sx2_versions_failed"),
+          paste0(
+            sx2_version_status$Wersja[failed], " (",
+            sx2_version_status$message[failed], ")",
+            collapse = "; "
+          )
+        )
+      )
+    }
+
+  } else if (!any(stats::complete.cases(data_items))) {
+
+    # S-X2 is based on the sum score, so mirt (na.rm = TRUE) computes it only
+    # on complete rows. With multiple test versions there are no such rows,
+    # and mirt then returns an unclear "No data!" error.
     sx2_status <- make_status(
       FALSE,
-      "sx2_error",
-      conditionMessage(sx2_result)
+      "sx2_no_complete_rows",
+      t("item_fit.msg.sx2_no_complete_rows")
     )
-    sx2_result <- NULL
 
   } else {
 
-    sx2_col <- grep("S_X2|S-X2", names(sx2_result), value = TRUE)[1]
-    df_col <- grep("^df$|df", names(sx2_result), value = TRUE)[1]
-    p_col <- grep("^p$|p$", names(sx2_result), value = TRUE)[1]
+    sx2_result <- tryCatch(
+      mirt::itemfit(
+        model,
+        fit_stats = "S_X2",
+        na.rm = TRUE
+      ),
+      error = function(e) e
+    )
 
-    if (!is.na(sx2_col) && !is.na(df_col) && !is.na(p_col)) {
-
-      sx2_items <- get_item_labels(
-        sx2_result,
-        fallback_items = names(item_max_scores)
-      )
-
-      sx2_df <- data.frame(
-        Item = sx2_items,
-        Max_score = as.numeric(item_max_scores[sx2_items]),
-        S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
-        df = as.numeric(sx2_result[[df_col]]),
-        p = round(as.numeric(sx2_result[[p_col]]), 4),,
-        RMSEA = if ("RMSEA.S_X2" %in% names(sx2_result)) round(as.numeric(sx2_result[["RMSEA.S_X2"]]), 3) else NA_real_,
-        stringsAsFactors = FALSE
-      )
-
-      sx2_df$p_holm <- round(
-        stats::p.adjust(sx2_df$p, method = "holm"),
-        4
-      )
-
-      sx2_df$Dopasowanie <- ifelse(
-        is.na(sx2_df$p_holm),
-        "Brak danych",
-        ifelse(
-          sx2_df$p_holm >= alpha,
-          "OK",
-          "Sygnal niedopasowania"
-        )
-      )
-
-    } else {
-
+    if (inherits(sx2_result, "error")) {
       sx2_status <- make_status(
         FALSE,
-        "sx2_columns_missing",
-        "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
+        "sx2_error",
+        conditionMessage(sx2_result)
       )
+      sx2_result <- NULL
+    } else {
+      sx2_df <- sx2_table(sx2_result, item_max_scores, names(item_max_scores))
+      if (is.null(sx2_df)) {
+        sx2_status <- make_status(
+          FALSE,
+          "sx2_columns_missing",
+          "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
+        )
+      }
     }
+  }
+
+  if (!is.null(sx2_df)) {
+
+    # Holm correction applied jointly to all S-X2 tests (items and versions)
+    sx2_df$p_holm <- round(
+      stats::p.adjust(sx2_df$p, method = "holm"),
+      4
+    )
+
+    sx2_df$Dopasowanie <- ifelse(
+      is.na(sx2_df$p_holm),
+      "Brak danych",
+      ifelse(
+        sx2_df$p_holm >= alpha,
+        "OK",
+        "Sygnal niedopasowania"
+      )
+    )
   }
 
   # ---------------------------------------------------------------
@@ -1947,7 +2155,7 @@ run_item_fit <- function(
   }
 
   # ---------------------------------------------------------------
-  # Laczenie wynikow i wykres
+  # Combining results and plot
   # ---------------------------------------------------------------
 
   fit_combined <- NULL
@@ -1977,8 +2185,13 @@ run_item_fit <- function(
 
   if (!is.null(sx2_df) && !is.null(infit_df)) {
 
+    # An item shared by several versions has a single point on the plot:
+    # the worst S-X2 result
+    sx2_plot <- sx2_df[order(sx2_df$p_holm), c("Item", "p", "p_holm", "Dopasowanie")]
+    sx2_plot <- sx2_plot[!duplicated(sx2_plot$Item), , drop = FALSE]
+
     fit_plot_data <- merge(
-      sx2_df[, c("Item", "p", "p_holm", "Dopasowanie")],
+      sx2_plot,
       infit_df[, c("Item", "Infit_MNSQ", "Outfit_MNSQ")],
       by = "Item",
       all = TRUE
@@ -2022,16 +2235,19 @@ run_item_fit <- function(
   }
 
 
-  # Informacja o brakach danych dla S-X2
-  sx2_n_total <- nrow(data_items)
-  sx2_n_missing_rows <- sum(rowSums(is.na(data_items)) > 0)
-  sx2_na_info <- data.frame(
-    N_total = sx2_n_total,
-    N_complete = sx2_n_total - sx2_n_missing_rows,
-    N_rows_with_missing = sx2_n_missing_rows,
-    Percent_rows_with_missing = round(100 * sx2_n_missing_rows / max(sx2_n_total, 1), 1),
-    stringsAsFactors = FALSE
-  )
+  # Missing data information for S-X2 (for per-version S-X2 it is already
+  # computed within each version)
+  if (is.null(sx2_na_info)) {
+    sx2_n_total <- nrow(data_items)
+    sx2_n_missing_rows <- sum(rowSums(is.na(data_items)) > 0)
+    sx2_na_info <- data.frame(
+      N_total = sx2_n_total,
+      N_complete = sx2_n_total - sx2_n_missing_rows,
+      N_rows_with_missing = sx2_n_missing_rows,
+      Percent_rows_with_missing = round(100 * sx2_n_missing_rows / max(sx2_n_total, 1), 1),
+      stringsAsFactors = FALSE
+    )
+  }
 
   list(
     status = make_status(TRUE, "ok", NA_character_),
@@ -2042,6 +2258,7 @@ run_item_fit <- function(
     sx2_df = sx2_df,
     sx2_status = sx2_status,
     sx2_na_info = sx2_na_info,
+    sx2_version_status = sx2_version_status,
     infit = infit_result,
     infit_df = infit_df,
     infit_status = infit_status,
@@ -2054,7 +2271,7 @@ run_item_fit <- function(
   )
 }
 # ============================================================================
-# ANALIZA DIF
+# DIF ANALYSIS
 # ============================================================================
 
 #' @title Analiza DIF dla pary grup
@@ -2251,7 +2468,7 @@ run_dif_pair <- function(
   }
 
   # ---------------------------------------------------------------
-  # Sciezka binarna: logistyczny DIF z sirt
+  # Binary path: logistic DIF with sirt
   # ---------------------------------------------------------------
 
   if (item_type == "binary") {
@@ -2354,7 +2571,7 @@ run_dif_pair <- function(
   }
 
   # ---------------------------------------------------------------
-  # Sciezka politomiczna / mieszana: modelowy DIF w mirt
+  # Polytomous / mixed path: model-based DIF in mirt
   # ---------------------------------------------------------------
 
   itemtype_vector <- ifelse(
@@ -2677,7 +2894,7 @@ run_dif_analysis <- function(
       next
     }
 
-    label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
+    label_v <- ifelse(v == "all", "", paste0("(", t("common.version"), " ", v, ")"))
 
     pair_item_type <- if (!is.null(v_irt$item_type)) {
       v_irt$item_type
@@ -2726,7 +2943,7 @@ run_dif_analysis <- function(
 }
 
 # ============================================================================
-# EKSPORT DO EXCELA
+# EXPORT TO EXCEL
 # ============================================================================
 
 #' @title Eksport wynikow analiz psychometrycznych do Excela
@@ -2854,14 +3071,17 @@ export_results_to_excel <- function(
     label <- ifelse(name == "all", "ItemFit", paste0("ItemFit_v", name))
 
     if (!is.null(r$sx2_df) && !is.null(r$infit_df)) {
+      sx2_cols <- intersect(c("Wersja", "Item", "S_X2", "p"), names(r$sx2_df))
       fit_combined <- merge(
-        r$sx2_df[, c("Item", "S_X2", "p")],
+        r$sx2_df[, sx2_cols],
         r$infit_df[, c("Item", "Infit_MNSQ", "Outfit_MNSQ")],
         by = "Item",
         all = TRUE
       )
 
-      names(fit_combined) <- c("Item", "S_X2", "p_SX2", "Infit", "Outfit")
+      names(fit_combined)[match(
+        c("p", "Infit_MNSQ", "Outfit_MNSQ"), names(fit_combined)
+      )] <- c("p_SX2", "Infit", "Outfit")
       export_sheets[[safe_sheet_name(label)]] <- fit_combined
     }
   }
