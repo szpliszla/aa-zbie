@@ -11,7 +11,13 @@ run_dif_pair(
   group_ref,
   group_focal,
   label,
-  model_name = NULL
+  model_name = NULL,
+  item_type = "auto",
+  item_max_scores = NULL,
+  min_group_n = 100,
+  min_items = 3,
+  min_category_n = 5,
+  alpha = 0.05
 )
 }
 \arguments{
@@ -28,12 +34,28 @@ run_dif_pair(
 \item{label}{Etykieta porownania grup.}
 
 \item{model_name}{Opcjonalna nazwa modelu, z ktorego pochodza oszacowania theta.}
+
+\item{item_type}{Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.}
+
+\item{item_max_scores}{Opcjonalny named vector z maksymalnym wynikiem per item.}
+
+\item{min_group_n}{Minimalna liczba osob w kazdej grupie.}
+
+\item{min_items}{Minimalna liczba itemow po filtrowaniu.}
+
+\item{min_category_n}{Minimalna liczebnosc kategorii uzywana w diagnostyce.}
+
+\item{alpha}{Poziom istotnosci uzywany do flagowania DIF.}
 }
 \value{
-Lista zawierajaca status, informacje o grupach, wyniki DIF, ramke danych DIF, wykres i dane uzyte w analizie.
+Lista zawierajaca status, informacje o grupach, wyniki DIF,
+ramke danych DIF, wykres i dane uzyte w analizie.
 }
 \description{
-Wykonuje logistyczna analize DIF dla dwoch wskazanych grup, korzystajac z wektora theta jako wyniku kontrolnego, i zwraca klasyfikacje ETS oraz wykres roznic.
+Wykonuje analize DIF dla dwoch wskazanych grup. Dla itemow binarnych
+zachowuje dotychczasowa logistyczna analize DIF z pakietu \code{sirt}.
+Dla itemow politomicznych i mieszanych wykonuje modelowa analize DIF
+w pakiecie \code{mirt}, zgodna z modelami partial-credit.
 }
 \examples{
 # run_dif_pair(data_items, group_vec, theta_vec, "K", "M", "K vs M")

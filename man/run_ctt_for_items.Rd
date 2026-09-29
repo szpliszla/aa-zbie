@@ -7,7 +7,8 @@
 run_ctt_for_items(
   data_items,
   label = "Caly test",
-  correlation_threshold_negative = 0
+  correlation_threshold_negative = 0,
+  item_max_scores = NULL
 )
 }
 \arguments{
@@ -16,6 +17,8 @@ run_ctt_for_items(
 \item{label}{Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu obiektow wykresow.}
 
 \item{correlation_threshold_negative}{Prog korelacji \code{r_cor}, ponizej ktorego itemy sa zwracane jako slabe w polu \code{weak_items}.}
+
+\item{item_max_scores}{Opcjonalny named vector z maksymalnym wynikiem per item. Gdy NULL, obliczany z danych. Uzywany do normalizacji trudnosci dla itemow politomicznych.}
 }
 \value{
 Lista zawierajaca status, statystyki rzetelnosci, statystyki itemow, podsumowania, wykresy i oczyszczone dane itemowe.

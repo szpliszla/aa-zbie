@@ -2,14 +2,15 @@
 % Please edit documentation in R/silnik_psychometria_analizy.R
 \name{make_empirical_icc_plot}
 \alias{make_empirical_icc_plot}
-\title{Przygotowanie wykresu empirycznego dopasowania ICC}
+\title{Przygotowanie wykresu empirycznego dopasowania IRT}
 \usage{
 make_empirical_icc_plot(
   model,
   data_items,
   theta_vals,
   label = "Caly test",
-  model_name = "IRT"
+  model_name = "IRT",
+  item_max_scores = NULL
 )
 }
 \arguments{
@@ -22,12 +23,18 @@ make_empirical_icc_plot(
 \item{label}{Etykieta analizy uzywana w tytule wykresu.}
 
 \item{model_name}{Nazwa modelu IRT uzywana w tytule wykresu.}
+
+\item{item_max_scores}{Opcjonalny named vector z maksymalnym wynikiem per item.}
 }
 \value{
-Obiekt klasy \code{ggplot} albo \code{NULL}, gdy nie da sie utworzyc grup theta.
+Obiekt klasy \code{ggplot} albo \code{NULL}, gdy nie da sie utworzyc wykresu.
 }
 \description{
-Porownuje przewidywane krzywe charakterystyczne itemow z empirycznymi srednimi odpowiedziami w grupach theta i zwraca jeden obiekt ggplot z panelami dla itemow.
+Porownuje przewidywany przez model wynik itemu z empirycznymi srednimi
+odpowiedziami w grupach theta. Dla itemow binarnych odpowiada to
+prawdopodobienstwu poprawnej odpowiedzi. Dla itemow politomicznych
+wynik jest normalizowany do zakresu 0-1, czyli interpretowany jako
+oczekiwany odsetek mozliwych punktow za item.
 }
 \examples{
 # make_empirical_icc_plot(model, data_items, theta_vals)

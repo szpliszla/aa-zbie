@@ -210,12 +210,18 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 
 #' @title Walidacja itemow testowych
 #'
-#' @description Sprawdza typ danych, binarnosc itemow oraz wariancje
+#' @description Sprawdza typ danych, klasyfikuje itemy jako binarne lub
+#' politomiczne i weryfikuje wariancje. Itemy z prawidlowym kodowaniem
+#' (kolejne liczby calkowite od 0 do max) sa zachowywane niezaleznie od
+#' liczby kategorii. Itemy z niecalkowitymi, ujemnymi lub niespojnymi
+#' wartosciami sa wykluczane.
 #'
 #' @param raw_data Ramka danych
 #' @param item_cols Wektor nazw kolumn z itemami
 
-#' @return Lista z informacjami o problemach walidacyjnych
+#' @return Lista z oczyszczonymi danymi itemowymi, diagnostykami walidacyjnymi
+#'   oraz klasyfikacja typu itemow (\code{item_type}, \code{item_max_scores},
+#'   \code{n_categories}).
 #'
 #' @details Funkcja jest czysta wzgledem srodowiska zewnetrznego: nie zapisuje
 #' plikow, nie wypisuje komunikatow i nie modyfikuje przekazanej ramki danych.
@@ -304,36 +310,109 @@ validate_items_data <- function(raw_data, item_cols) {
     )
   }
 
-  # Lukasz: dobre miejsce na "wpiecie sie" z danymi kategorycznymi.
+  # ------------------------------------------------------------------
+  # Klasyfikacja itemow: binarne vs politomiczne
+  # ------------------------------------------------------------------
+  # Itemy z wartosciami bedacymi kolejnymi liczbami calkowitymi (np.
+  # 0,1 lub 0,1,2,3) sa traktowane jako prawidlowe. Itemy zaczynajace
+  # sie od wartosci > 0 sa przeskalowywane (odjecie minimum). Itemy z
+  # niecalkowitymi, ujemnymi lub niespojnymi wartosciami sa wykluczane.
 
-  value_check <- vapply(items_data, function(x) {
-    vals <- unique(x[!is.na(x)])
-    all(vals %in% c(0, 1))
-  }, logical(1))
+  item_diagnostics <- lapply(names(items_data), function(col) {
+    vals <- sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
 
-  non_binary <- names(value_check[!value_check])
+    if (length(vals) == 0) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = 0L,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "brak_wartosci"
+      ))
+    }
+
+    is_integer <- all(vals == floor(vals))
+    if (!is_integer) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "niecalkowite"
+      ))
+    }
+
+    is_non_negative <- all(vals >= 0)
+    if (!is_non_negative) {
+      return(list(
+        name = col, vals = vals, min_val = NA_real_,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "ujemne"
+      ))
+    }
+
+    min_val <- min(vals)
+    max_val <- max(vals)
+    expected_seq <- seq(min_val, max_val)
+    is_contiguous <- setequal(vals, expected_seq)
+
+    if (!is_contiguous) {
+      return(list(
+        name = col, vals = vals, min_val = min_val,
+        max_score = NA_real_, n_categories = NA_integer_,
+        is_valid = FALSE, is_binary = FALSE,
+        issue = "luki_w_kategoriach"
+      ))
+    }
+
+    effective_max <- max_val - min_val
+
+    list(
+      name = col,
+      vals = vals,
+      min_val = min_val,
+      max_score = effective_max,
+      n_categories = as.integer(effective_max + 1L),
+      is_valid = TRUE,
+      is_binary = (effective_max == 1),
+      issue = NA_character_
+    )
+  })
+
+  names(item_diagnostics) <- names(items_data)
+
+  is_valid <- vapply(item_diagnostics, function(d) d$is_valid, logical(1))
+
+  invalid_items <- names(is_valid[!is_valid])
   non_binary_values <- list()
 
-  if (length(non_binary) > 0) {
+  if (length(invalid_items) > 0) {
 
     non_binary_values <- lapply(
-      non_binary,
-      function(col) {
-        sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
-      }
+      invalid_items,
+      function(col) item_diagnostics[[col]]$vals
     )
 
-    names(non_binary_values) <- non_binary
+    names(non_binary_values) <- invalid_items
 
-    item_cols <- setdiff(item_cols, non_binary)
+    invalid_reasons <- vapply(
+      invalid_items,
+      function(col) item_diagnostics[[col]]$issue,
+      character(1)
+    )
+
+    item_cols <- setdiff(item_cols, invalid_items)
     items_data <- items_data[, item_cols, drop = FALSE]
 
     validation_issues <- c(
       validation_issues,
       list(
         paste0(
-          "Wykluczono itemy niebinarne: ",
-          paste(non_binary, collapse = ", ")
+          "Wykluczono itemy z nieprawidlowymi wartosciami: ",
+          paste(
+            sprintf("%s (%s: %s)", invalid_items, invalid_reasons,
+              vapply(invalid_items, function(col) paste(sort(item_diagnostics[[col]]$vals), collapse = ","), character(1))),
+            collapse = ", "
+          )
         )
       )
     )
@@ -341,9 +420,54 @@ validate_items_data <- function(raw_data, item_cols) {
 
   if (length(item_cols) == 0) {
     stop(
-      "Po wykluczeniu itemow niebinarnych nie pozostaly zadne itemy do analizy.",
+      "Po walidacji wartosci nie pozostaly zadne itemy do analizy.",
       call. = FALSE
     )
+  }
+
+  # Przeskaluj itemy zaczynajace sie od wartosci > 0
+  recoded_items <- character(0)
+
+  for (col in item_cols) {
+    min_val <- item_diagnostics[[col]]$min_val
+    if (!is.na(min_val) && min_val > 0) {
+      items_data[[col]] <- items_data[[col]] - min_val
+      recoded_items <- c(recoded_items, col)
+    }
+  }
+
+  if (length(recoded_items) > 0) {
+    validation_warnings <- c(
+      validation_warnings,
+      list(paste0(
+        "Przeskalowano itemy (odjeto minimum, aby zakres zaczynal sie od 0): ",
+        paste(recoded_items, collapse = ", ")
+      ))
+    )
+  }
+
+  # Okresl typ itemow
+  valid_diag <- item_diagnostics[item_cols]
+
+  item_max_scores <- vapply(
+    valid_diag, function(d) as.integer(d$max_score), integer(1)
+  )
+  names(item_max_scores) <- item_cols
+
+  n_categories <- vapply(
+    valid_diag, function(d) d$n_categories, integer(1)
+  )
+  names(n_categories) <- item_cols
+
+  all_binary <- all(item_max_scores == 1L)
+  any_binary <- any(item_max_scores == 1L)
+
+  item_type <- if (all_binary) {
+    "binary"
+  } else if (!any_binary) {
+    "polytomous"
+  } else {
+    "mixed"
   }
 
   item_vars <- vapply(
@@ -370,6 +494,10 @@ validate_items_data <- function(raw_data, item_cols) {
     )
   }
 
+    # Aktualizacja item_max_scores i n_categories po odsiewie
+    item_max_scores <- item_max_scores[item_cols]
+    n_categories <- n_categories[item_cols]
+
   if (length(item_cols) == 0) {
     stop(
       "Po walidacji nie pozostaly zadne itemy do analizy.",
@@ -380,11 +508,14 @@ validate_items_data <- function(raw_data, item_cols) {
   list(
     item_cols = item_cols,
     items_data = items_data,
+    item_type = item_type,
+    item_max_scores = item_max_scores,
+    n_categories = n_categories,
     validation_issues = validation_issues,
     validation_warnings = validation_warnings,
     non_numeric_items = non_numeric,
     conversion_diagnostics = conversion_diagnostics,
-    non_binary_items = non_binary,
+    non_binary_items = invalid_items,
     non_binary_values = non_binary_values,
     zero_variance_items = zero_var_items
   )
@@ -405,6 +536,11 @@ validate_items_data <- function(raw_data, item_cols) {
 #' @param min_pattern_prop Minimalny udzial wzorca brakow, aby uznac go za wersje.
 #' @param item_missing_max_prop Maksymalny udzial brakow itemu w danej wersji.
 #' @param detected_version_col Nazwa roboczej kolumny z wykryta wersja.
+#' @param warn_unclassified_prop Proporcja obserwacji bez przypisanej wersji,
+#'   powyzej ktorej dodawane jest ostrzezenie. Domyslnie \code{0.05}.
+#' @param max_unclassified_prop Maksymalna proporcja obserwacji bez przypisanej
+#'   wersji przy automatycznym wykrywaniu. Po przekroczeniu tego progu
+#'   podzial na wersje zostaje wylaczony. Domyslnie \code{0.20}.
 #'
 #' @return Lista z danymi, wersjami testu, itemami wersji i diagnostyka.
 #'
@@ -422,7 +558,9 @@ detect_test_versions <- function(
     version_var = NULL,
     min_pattern_prop = 0.05,
     item_missing_max_prop = 0.90,
-    detected_version_col = ".detected_version"
+    detected_version_col = ".detected_version",
+    warn_unclassified_prop = 0.05,
+    max_unclassified_prop = 0.20
 ) {
 
   if (!is.data.frame(raw_data)) {
@@ -502,6 +640,37 @@ detect_test_versions <- function(
   ) {
     stop(
       "Argument 'detected_version_col' musi byc pojedyncza nazwa kolumny.",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(warn_unclassified_prop) ||
+      length(warn_unclassified_prop) != 1 ||
+      warn_unclassified_prop < 0 ||
+      warn_unclassified_prop >= 1
+  ) {
+    stop(
+      "Argument 'warn_unclassified_prop' musi byc pojedyncza liczba z przedzialu [0, 1).",
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.numeric(max_unclassified_prop) ||
+      length(max_unclassified_prop) != 1 ||
+      max_unclassified_prop <= 0 ||
+      max_unclassified_prop > 1
+  ) {
+    stop(
+      "Argument 'max_unclassified_prop' musi byc pojedyncza liczba z przedzialu (0, 1].",
+      call. = FALSE
+    )
+  }
+
+  if (warn_unclassified_prop > max_unclassified_prop) {
+    stop(
+      "Argument 'warn_unclassified_prop' nie moze byc wiekszy niz 'max_unclassified_prop'.",
       call. = FALSE
     )
   }
@@ -663,6 +832,72 @@ detect_test_versions <- function(
 
   detected_versions <- sort(unique(version_vector[!is.na(version_vector)]))
 
+  # kontrola bezpieczenstwa automatycznego wykrywania wersji
+
+  n_total <- nrow(items_matrix)
+  n_unclassified <- length(unclassified_rows)
+
+  unclassified_prop <- if (n_total > 0) {
+    n_unclassified / n_total
+  } else {
+    NA_real_
+  }
+
+  auto_detection_disabled <- FALSE
+
+  if (
+    is.finite(unclassified_prop) &&
+      n_unclassified > 0 &&
+      unclassified_prop > warn_unclassified_prop
+  ) {
+    detection_warnings <- c(
+      detection_warnings,
+      paste0(
+        "Wykrywanie wersji testu pozostawilo ",
+        n_unclassified,
+        " obserwacji bez przypisanej wersji (",
+        round(100 * unclassified_prop, 1),
+        "%)."
+      )
+    )
+  }
+
+  if (
+    detection_method == "missing_pattern" &&
+      is.finite(unclassified_prop) &&
+      unclassified_prop > max_unclassified_prop
+  ) {
+    detection_warnings <- c(
+      detection_warnings,
+      paste0(
+        "Automatyczne wykrywanie wersji testu zostalo wylaczone, ",
+        "poniewaz nie przypisalo wersji dla ",
+        n_unclassified,
+        " obserwacji (",
+        round(100 * unclassified_prop, 1),
+        "%). Analizy zostana wykonane bez podzialu na wersje."
+      )
+    )
+
+    auto_detection_disabled <- TRUE
+
+    version_vector <- rep(NA_character_, nrow(items_matrix))
+    raw_data[[detected_version_col]] <- version_vector
+    detected_versions <- character(0)
+    unclassified_rows <- integer(0)
+    unclassified_patterns <- NULL
+  }
+
+  version_detection_safety <- data.frame(
+    N_total = n_total,
+    N_unclassified = n_unclassified,
+    Percent_unclassified = round(100 * unclassified_prop, 1),
+    Warn_threshold_percent = round(100 * warn_unclassified_prop, 1),
+    Max_threshold_percent = round(100 * max_unclassified_prop, 1),
+    Auto_detection_disabled = auto_detection_disabled,
+    stringsAsFactors = FALSE
+  )
+
   version_items <- make_version_items(
     version_vector = version_vector,
     detected_versions = detected_versions
@@ -718,6 +953,9 @@ detect_test_versions <- function(
     unclassified_patterns = unclassified_patterns,
     detected_version_col = detected_version_col,
     min_pattern_prop = min_pattern_prop,
-    item_missing_max_prop = item_missing_max_prop
+    item_missing_max_prop = item_missing_max_prop,
+    warn_unclassified_prop = warn_unclassified_prop,
+    max_unclassified_prop = max_unclassified_prop,
+    version_detection_safety = version_detection_safety
   )
 }

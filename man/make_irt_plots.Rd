@@ -10,7 +10,9 @@ make_irt_plots(
   theta_vals,
   label,
   preferred_name,
-  show_empirical_icc = TRUE
+  show_empirical_icc = TRUE,
+  item_type = "binary",
+  item_max_scores = NULL
 )
 }
 \arguments{
@@ -24,13 +26,20 @@ make_irt_plots(
 
 \item{preferred_name}{Nazwa wybranego modelu IRT.}
 
-\item{show_empirical_icc}{Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.}
+\item{show_empirical_icc}{Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania.}
+
+\item{item_type}{Typ itemow: \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.}
+
+\item{item_max_scores}{Opcjonalny named vector z maksymalnym wynikiem per item.}
 }
 \value{
 Lista obiektow wykresow.
 }
 \description{
-Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca funkcje informacyjna testu, krzywe charakterystyczne itemow, opcjonalne dopasowanie empiryczne ICC oraz histogram theta.
+Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca
+funkcje informacyjna testu, krzywe odpowiedzi itemow, opcjonalne
+empiryczne dopasowanie oraz histogram theta. Funkcja obsluguje itemy
+binarne, politomiczne i mieszane.
 }
 \examples{
 # make_irt_plots(model, data_items, theta_vals, "Caly test", "2PL")

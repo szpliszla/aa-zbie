@@ -173,6 +173,7 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 #' @param data_items Ramka danych lub macierz z odpowiedziami na itemy. Kolumny odpowiadaja itemom, a wiersze osobom.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu obiektow wykresow.
 #' @param correlation_threshold_negative Prog korelacji `r_cor`, ponizej ktorego itemy sa zwracane jako slabe w polu `weak_items`.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item. Gdy NULL, obliczany z danych. Uzywany do normalizacji trudnosci dla itemow politomicznych.
 #'
 #' @return Lista zawierajaca status, statystyki rzetelnosci, statystyki itemow, podsumowania, wykresy i oczyszczone dane itemowe.
 #'
@@ -186,7 +187,8 @@ make_ctt_plot <- function(item_stats, label = "Caly test") {
 run_ctt_for_items <- function(
     data_items,
     label = "Caly test",
-    correlation_threshold_negative = 0
+    correlation_threshold_negative = 0,
+    item_max_scores = NULL
 ) {
 
   vars <- sapply(data_items, stats::var, na.rm = TRUE)
@@ -217,6 +219,42 @@ run_ctt_for_items <- function(
     ))
   }
 
+  observed_matrix <- !is.na(as.matrix(data_items))
+  pairwise_n <- t(observed_matrix) %*% observed_matrix
+
+  if (any(pairwise_n < 3)) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_pairwise_observations",
+        "Za malo wspolnych obserwacji dla co najmniej jednej pary itemow. Alpha Cronbacha nie zostala obliczona."
+      ),
+      label = label,
+      zero_variance_items = zero_var,
+      pairwise_n = pairwise_n,
+      data_items = data_items
+    ))
+  }
+
+  cor_matrix <- tryCatch(
+    suppressWarnings(stats::cor(data_items, use = "pairwise.complete.obs")),
+    error = function(e) e
+  )
+
+  if (inherits(cor_matrix, "error") || any(!is.finite(cor_matrix))) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "invalid_correlation_matrix",
+        "Macierz korelacji jest niepoprawna. Alpha Cronbacha nie zostala obliczona."
+      ),
+      label = label,
+      zero_variance_items = zero_var,
+      pairwise_n = pairwise_n,
+      data_items = data_items
+    ))
+  }
+  
   alpha_result <- tryCatch(
     suppressWarnings(psych::alpha(data_items, check.keys = FALSE)),
     error = function(e) e
@@ -247,10 +285,21 @@ run_ctt_for_items <- function(
 
   reliability_df <- reliability_df[!is.na(reliability_df$Wartosc), , drop = FALSE]
 
+  # Oblicz maksymalne wyniki per item (dla normalizacji trudnosci)
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    item_max_scores <- item_max_scores[names(data_items)]
+  }
+  item_max_scores[item_max_scores == 0] <- 1L
+
+  item_means <- colMeans(data_items, na.rm = TRUE)
+
   item_stats <- data.frame(
     Item = rownames(alpha_result$item.stats),
     N = colSums(!is.na(data_items)),
-    Trudnosc_p = round(colMeans(data_items, na.rm = TRUE), 3),
+    Max_score = as.integer(item_max_scores),
+    Trudnosc_p = round(item_means / item_max_scores, 3),
     r_cor = round(alpha_result$item.stats$r.cor, 3),
     r_drop = round(alpha_result$item.stats$r.drop, 3),
     Alpha_bez_itemu = round(alpha_result$alpha.drop$raw_alpha, 3),
@@ -300,6 +349,9 @@ run_ctt_for_items <- function(
 #' @param label Etykieta analizy zapisywana w wyniku.
 #' @param thresholds Wektor liczbowy z kolejnymi progami korelacji `r_cor` uzywanymi do usuwania itemow.
 #'
+#' @param alpha_timeout Maksymalny czas (w sekundach) na pojedyncze wywolanie
+#'   \code{psych::alpha()}. Po przekroczeniu limitu eliminacja zostaje przerwana
+#'   z ostrzezeniem. Domyslnie \code{120}.
 #' @return Lista zawierajaca status, tabele krokow eliminacji, nazwy pozostalych i usunietych itemow oraz finalne dane.
 #'
 #' @examples
@@ -310,7 +362,8 @@ run_ctt_for_items <- function(
 sequential_elimination <- function(
     data_items,
     label = "Caly test",
-    thresholds = c(0, 0.10, 0.15)
+    thresholds = c(0, 0.10, 0.15),
+    alpha_timeout = 120
 ) {
 
   if (ncol(data_items) < 3) {
@@ -331,6 +384,22 @@ sequential_elimination <- function(
   current_data <- data_items
   all_removed <- character(0)
 
+  safe_alpha <- function(d, timeout) {
+    tryCatch({
+      setTimeLimit(elapsed = timeout)
+      on.exit(setTimeLimit(elapsed = Inf), add = TRUE)
+      suppressWarnings(psych::alpha(d, check.keys = FALSE))
+    }, error = function(e) {
+      if (grepl("time limit|elapsed", conditionMessage(e), ignore.case = TRUE)) {
+        structure(list(message = conditionMessage(e)), class = c("alpha_timeout", "condition"))
+      } else {
+        NULL
+      }
+    })
+  }
+
+  alpha_timed_out <- FALSE
+
   default_step_names <- c(
     "Ujemne korelacje (r <= 0)",
     "Bardzo niska korelacja (r <= 0.10)",
@@ -346,10 +415,13 @@ sequential_elimination <- function(
   for (s in seq_along(thresholds)) {
     if (ncol(current_data) < 3) break
 
-    alpha_res <- tryCatch(
-      suppressWarnings(psych::alpha(current_data, check.keys = FALSE)),
-      error = function(e) NULL
-    )
+    alpha_res <- safe_alpha(current_data, alpha_timeout)
+
+    if (inherits(alpha_res, "alpha_timeout")) {
+      alpha_timed_out <- TRUE
+      break
+    }
+
 
     if (is.null(alpha_res)) break
 
@@ -375,13 +447,15 @@ sequential_elimination <- function(
     }
   }
 
-  if (ncol(current_data) >= 3) {
-    alpha_final <- tryCatch(
-      suppressWarnings(psych::alpha(current_data, check.keys = FALSE)),
-      error = function(e) NULL
-    )
+  if (ncol(current_data) >= 3 && !alpha_timed_out) {
+    alpha_final <- safe_alpha(current_data, alpha_timeout)
 
-    if (!is.null(alpha_final)) {
+    if (inherits(alpha_final, "alpha_timeout")) {
+      alpha_timed_out <- TRUE
+    }
+
+
+    if (!is.null(alpha_final) && !inherits(alpha_final, "alpha_timeout")) {
       steps[[length(steps) + 1]] <- data.frame(
         Krok = "Po eliminacji",
         Threshold = NA_real_,
@@ -396,8 +470,22 @@ sequential_elimination <- function(
   steps_df <- if (length(steps) > 0) do.call(rbind, steps) else data.frame()
   if (nrow(steps_df) > 0) steps_df$Alpha <- round(steps_df$Alpha, 3)
 
+
+  status <- if (alpha_timed_out) {
+    make_status(
+      FALSE,
+      "alpha_timeout",
+      paste0(
+        "Obliczanie alpha Cronbacha przekroczylo limit czasu (",
+        alpha_timeout, " s). Eliminacja zostala przerwana."
+      )
+    )
+  } else {
+    make_status(TRUE, "ok", NA_character_)
+  }
+
   list(
-    status = make_status(TRUE, "ok", NA_character_),
+    status = status,
     label = label,
     steps = steps_df,
     remaining_items = names(current_data),
@@ -412,10 +500,15 @@ sequential_elimination <- function(
 
 #' @title Przygotowanie tabeli parametrow IRT
 #'
-#' @description Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je w ramce danych zawierajacej dyskryminacje, trudnosc, zgadywanie oraz interpretacje dyskryminacji.
+#' @description
+#' Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je
+#' w ramce danych. Funkcja obsluguje modele binarne oraz modele
+#' partial-credit dla itemow punktowanych politomicznie. Dla modeli
+#' politomicznych zwraca wiele progow/trudnosci, np. b1, b2, b3.
 #'
 #' @param model Dopasowany model IRT z pakietu `mirt`.
-#' @param model_name Nazwa modelu zapisywana w tabeli, np. `"1PL"`, `"2PL"` lub `"3PL"`.
+#' @param model_name Nazwa modelu zapisywana w tabeli, np. `"1PL"`, `"2PL"`,
+#'   `"3PL"`, `"Rasch_PCM"` lub `"2PL_GPCM"`.
 #'
 #' @return Ramka danych z parametrami itemow IRT.
 #'
@@ -426,41 +519,168 @@ sequential_elimination <- function(
 #' @export
 make_params_table <- function(model, model_name = NA_character_) {
 
-  item_params <- mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items
+  empty_params <- data.frame(
+    Item = character(0),
+    Model = character(0),
+    a_dyskryminacja = numeric(0),
+    b_trudnosc = numeric(0),
+    g_zgadywanie = numeric(0),
+    Ocena_a = character(0),
+    stringsAsFactors = FALSE
+  )
+
+  if (is.null(model)) {
+    return(empty_params)
+  }
+
+  item_params <- tryCatch(
+    mirt::coef(model, simplify = TRUE, IRTpars = TRUE)$items,
+    error = function(e) NULL
+  )
+
+  if (is.null(item_params)) {
+    return(empty_params)
+  }
+
+  item_params <- as.data.frame(item_params)
 
   params_df <- data.frame(
     Item = rownames(item_params),
     Model = model_name,
-    a_dyskryminacja = if ("a" %in% colnames(item_params)) round(item_params[, "a"], 3) else NA_real_,
-    b_trudnosc = if ("b" %in% colnames(item_params)) round(item_params[, "b"], 3) else NA_real_,
-    g_zgadywanie = if ("g" %in% colnames(item_params)) round(item_params[, "g"], 3) else NA_real_,
     stringsAsFactors = FALSE
   )
 
-  params_df$Ocena_a <- ""
+  extract_numeric <- function(col_name) {
+    if (
+      length(col_name) == 0 ||
+        is.na(col_name) ||
+        !col_name %in% names(item_params)
+    ) {
+      return(rep(NA_real_, nrow(item_params)))
+    }
+
+    suppressWarnings(as.numeric(item_params[[col_name]]))
+  }
+
+  order_parameter_columns <- function(cols, prefix) {
+    if (length(cols) == 0) {
+      return(cols)
+    }
+
+    suffix <- sub(paste0("^", prefix), "", cols)
+    suffix[suffix == ""] <- "0"
+    cols[order(suppressWarnings(as.integer(suffix)))]
+  }
+
+  # Dyskryminacja: w zaleznosci od modelu mirt moze zwrocic "a" albo "a1".
+  a_cols <- c(
+    intersect("a", names(item_params)),
+    intersect("a1", names(item_params)),
+    grep("^a[0-9]+$", names(item_params), value = TRUE)
+  )
+
+  a_col <- if (length(a_cols) > 0) a_cols[1] else NA_character_
+
+  params_df$a_dyskryminacja <- round(extract_numeric(a_col), 3)
+
+  # Trudnosc/progi: modele binarne zwykle maja jedno "b",
+  # a modele politomiczne wiele progow: b1, b2, b3...
+  b_cols <- grep("^b[0-9]*$", names(item_params), value = TRUE)
+  b_cols <- order_parameter_columns(b_cols, "b")
+
+  if (length(b_cols) == 1 && b_cols == "b") {
+
+    params_df$b_trudnosc <- round(extract_numeric("b"), 3)
+
+  } else if (length(b_cols) > 0) {
+
+    for (bc in b_cols) {
+      params_df[[bc]] <- round(extract_numeric(bc), 3)
+    }
+
+  } else {
+
+    # Awaryjnie: gdy mirt nie zwroci b/b1/b2 przy IRTpars = TRUE,
+    # zachowujemy parametry d1, d2, ... jako parametry techniczne.
+    d_cols <- grep("^d[0-9]*$", names(item_params), value = TRUE)
+    d_cols <- order_parameter_columns(d_cols, "d")
+
+    if (length(d_cols) > 0) {
+      for (dc in d_cols) {
+        params_df[[dc]] <- round(extract_numeric(dc), 3)
+      }
+    } else {
+      params_df$b_trudnosc <- NA_real_
+    }
+  }
+
+  # Zgadywanie: zwykle tylko dla 3PL.
+  params_df$g_zgadywanie <- if ("g" %in% names(item_params)) {
+    round(extract_numeric("g"), 3)
+  } else {
+    NA_real_
+  }
+
+  # Gorna asymptota, jesli model ja zwraca.
+  if ("u" %in% names(item_params)) {
+    params_df$u_gorna_asymptota <- round(extract_numeric("u"), 3)
+  }
+
+  # Ocena dyskryminacji.
+  params_df$Ocena_a <- NA_character_
 
   has_a <- !is.na(params_df$a_dyskryminacja)
 
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja < 0.20] <- "Bardzo slaby"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.20 & params_df$a_dyskryminacja < 0.50] <- "Slaby"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.50 & params_df$a_dyskryminacja < 0.80] <- "Umiarkowany"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 0.80 & params_df$a_dyskryminacja < 1.50] <- "Dobry"
-  params_df$Ocena_a[has_a & params_df$a_dyskryminacja >= 1.50] <- "Bardzo dobry"
-  params_df$Ocena_a[!has_a] <- NA_character_
+  params_df$Ocena_a[
+    has_a & params_df$a_dyskryminacja < 0.20
+  ] <- "Bardzo slaby"
 
-  return(params_df)
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.20 &
+      params_df$a_dyskryminacja < 0.50
+  ] <- "Slaby"
+
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.50 &
+      params_df$a_dyskryminacja < 0.80
+  ] <- "Umiarkowany"
+
+  params_df$Ocena_a[
+    has_a &
+      params_df$a_dyskryminacja >= 0.80 &
+      params_df$a_dyskryminacja < 1.50
+  ] <- "Dobry"
+
+  params_df$Ocena_a[
+    has_a & params_df$a_dyskryminacja >= 1.50
+  ] <- "Bardzo dobry"
+
+
+  # W modelach 1PL / Rasch_PCM dyskryminacja jest ustalona, nie oceniamy jej
+  if (grepl("1PL|Rasch", model_name, ignore.case = TRUE)) {
+    params_df$Ocena_a[has_a] <- "Ustalone (1PL)"
+  }
+  params_df
 }
 
 #' @title Przygotowanie wykresow dla wybranego modelu IRT
 #'
-#' @description Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca funkcje informacyjna testu, krzywe charakterystyczne itemow, opcjonalne dopasowanie empiryczne ICC oraz histogram theta.
+#' @description
+#' Tworzy liste obiektow wykresow dla wybranego modelu IRT, obejmujaca
+#' funkcje informacyjna testu, krzywe odpowiedzi itemow, opcjonalne
+#' empiryczne dopasowanie oraz histogram theta. Funkcja obsluguje itemy
+#' binarne, politomiczne i mieszane.
 #'
 #' @param preferred_model Dopasowany model IRT wybrany do interpretacji.
 #' @param data_items Ramka danych lub macierz itemow uzytych w modelu.
 #' @param theta_vals Wektor liczbowy z oszacowaniami theta.
 #' @param label Etykieta analizy uzywana w tytulach wykresow.
 #' @param preferred_name Nazwa wybranego modelu IRT.
-#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.
+#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania.
+#' @param item_type Typ itemow: \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #'
 #' @return Lista obiektow wykresow.
 #'
@@ -468,70 +688,174 @@ make_params_table <- function(model, model_name = NA_character_) {
 #' # make_irt_plots(model, data_items, theta_vals, "Caly test", "2PL")
 #'
 #' @export
-make_irt_plots <- function(preferred_model, data_items, theta_vals, label, preferred_name, show_empirical_icc = TRUE) {
-  plots <- list()
-
-  plots$test_information <- mirt::plot(
+make_irt_plots <- function(
     preferred_model,
-    type = "info",
-    facet_items = FALSE,
-    main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
+    data_items,
+    theta_vals,
+    label,
+    preferred_name,
+    show_empirical_icc = TRUE,
+    item_type = "binary",
+    item_max_scores = NULL
+) {
+
+  plots <- list()
+  plot_status <- list()
+
+  plots$test_information <- tryCatch(
+    mirt::plot(
+      preferred_model,
+      type = "info",
+      facet_items = FALSE,
+      main = paste("Funkcja informacyjna testu -", label, "-", preferred_name)
+    ),
+    error = function(e) {
+      plot_status$test_information <<- conditionMessage(e)
+      NULL
+    }
   )
+
+  trace_label <- if (item_type == "binary") {
+    "ICC"
+  } else {
+    "Krzywe kategorii punktowych"
+  }
 
   n_per_plot <- min(ncol(data_items), 12)
   trace_plots <- list()
 
-  for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
-    end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
-    plot_name <- paste0("items_", start_idx, "_", end_idx)
+  if (ncol(data_items) > 0) {
+    for (start_idx in seq(1, ncol(data_items), by = n_per_plot)) {
 
-    trace_plots[[plot_name]] <- mirt::plot(
-      preferred_model,
-      type = "trace",
-      which.items = start_idx:end_idx,
-      main = paste("ICC -", label, "-", preferred_name, "- itemy", start_idx, "do", end_idx),
-      facet_items = TRUE,
-      auto.key = list(points = FALSE, lines = TRUE)
-    )
+      end_idx <- min(start_idx + n_per_plot - 1, ncol(data_items))
+      plot_name <- paste0("items_", start_idx, "_", end_idx)
+
+      trace_plots[[plot_name]] <- tryCatch(
+        mirt::plot(
+          preferred_model,
+          type = "trace",
+          which.items = start_idx:end_idx,
+          main = paste(
+            trace_label,
+            "-",
+            label,
+            "-",
+            preferred_name,
+            "- itemy",
+            start_idx,
+            "do",
+            end_idx
+          ),
+          facet_items = TRUE,
+          auto.key = list(points = FALSE, lines = TRUE)
+        ),
+        error = function(e) {
+          plot_status[[paste0("trace_", plot_name)]] <<- conditionMessage(e)
+          NULL
+        }
+      )
+    }
   }
 
   plots$item_traces <- trace_plots
 
   if (show_empirical_icc) {
-    plots$empirical_icc <- make_empirical_icc_plot(
-      preferred_model,
-      data_items,
-      theta_vals,
-      label,
-      preferred_name
+    plots$empirical_icc <- tryCatch(
+      make_empirical_icc_plot(
+        model = preferred_model,
+        data_items = data_items,
+        theta_vals = theta_vals,
+        label = label,
+        model_name = preferred_name,
+        item_max_scores = item_max_scores
+      ),
+      error = function(e) {
+        plot_status$empirical_icc <<- conditionMessage(e)
+        NULL
+      }
     )
   }
 
   theta_df <- data.frame(theta = theta_vals)
-  plots$theta_histogram <- ggplot2::ggplot(theta_df, ggplot2::aes(x = .data$theta)) +
-    ggplot2::geom_histogram(bins = 30, color = "white") +
-    ggplot2::geom_vline(xintercept = mean(theta_vals, na.rm = TRUE), linewidth = 1) +
-    ggplot2::labs(
-      title = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
-      x = "Zdolnosc (theta)",
-      y = "Liczba osob"
-    ) +
-    ggplot2::theme_minimal()
+  theta_df <- theta_df[is.finite(theta_df$theta), , drop = FALSE]
 
-  return(plots)
+  plots$theta_histogram <- if (nrow(theta_df) > 0) {
+    ggplot2::ggplot(theta_df, ggplot2::aes(x = .data$theta)) +
+      ggplot2::geom_histogram(bins = 30, color = "white") +
+      ggplot2::geom_vline(
+        xintercept = mean(theta_df$theta, na.rm = TRUE),
+        linewidth = 1
+      ) +
+      ggplot2::labs(
+        title = paste("Rozklad theta (EAP) -", label, "-", preferred_name),
+        x = "Zdolnosc (theta)",
+        y = "Liczba osob"
+      ) +
+      ggplot2::theme_minimal()
+  } else {
+    plot_status$theta_histogram <- "Brak skonczonych wartosci theta."
+    NULL
+  }
+
+  if (length(plot_status) > 0) {
+    plots$plot_status <- data.frame(
+      plot = names(plot_status),
+      message = unlist(plot_status),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  plots
 }
 
-#' @title Przygotowanie wykresu empirycznego dopasowania ICC
+
+# Wewnetrzna funkcja pomocnicza: wyciaganie nazw itemow z wynikow mirt
+get_item_labels <- function(fit_result, fallback_items = NULL) {
+
+  fit_df <- as.data.frame(fit_result)
+
+  if ("item" %in% names(fit_df)) {
+    item_labels <- as.character(fit_df$item)
+  } else if ("Item" %in% names(fit_df)) {
+    item_labels <- as.character(fit_df$Item)
+  } else {
+    item_labels <- rownames(fit_df)
+  }
+
+  bad_labels <- is.null(item_labels) ||
+    length(item_labels) != nrow(fit_df) ||
+    any(is.na(item_labels)) ||
+    any(item_labels == "") ||
+    all(item_labels %in% as.character(seq_len(nrow(fit_df))))
+
+  if (
+    bad_labels &&
+      !is.null(fallback_items) &&
+      length(fallback_items) == nrow(fit_df)
+  ) {
+    item_labels <- as.character(fallback_items)
+  }
+
+  item_labels
+}
+
+#' @title Przygotowanie wykresu empirycznego dopasowania IRT
 #'
-#' @description Porownuje przewidywane krzywe charakterystyczne itemow z empirycznymi srednimi odpowiedziami w grupach theta i zwraca jeden obiekt ggplot z panelami dla itemow.
+#' @description
+#' Porownuje przewidywany przez model wynik itemu z empirycznymi srednimi
+#' odpowiedziami w grupach theta. Dla itemow binarnych odpowiada to
+#' prawdopodobienstwu poprawnej odpowiedzi. Dla itemow politomicznych
+#' wynik jest normalizowany do zakresu 0-1, czyli interpretowany jako
+#' oczekiwany odsetek mozliwych punktow za item.
 #'
 #' @param model Dopasowany model IRT z pakietu `mirt`.
 #' @param data_items Ramka danych lub macierz odpowiedzi itemowych.
 #' @param theta_vals Wektor liczbowy z oszacowaniami theta dla osob.
 #' @param label Etykieta analizy uzywana w tytule wykresu.
 #' @param model_name Nazwa modelu IRT uzywana w tytule wykresu.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #'
-#' @return Obiekt klasy `ggplot` albo `NULL`, gdy nie da sie utworzyc grup theta.
+#' @return Obiekt klasy `ggplot` albo `NULL`, gdy nie da sie utworzyc wykresu.
 #'
 #' @importFrom rlang .data
 #'
@@ -539,27 +863,101 @@ make_irt_plots <- function(preferred_model, data_items, theta_vals, label, prefe
 #' # make_empirical_icc_plot(model, data_items, theta_vals)
 #'
 #' @export
-make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly test", model_name = "IRT") {
-  breaks_theta <- unique(stats::quantile(theta_vals, probs = seq(0, 1, 0.1), na.rm = TRUE))
+make_empirical_icc_plot <- function(
+    model,
+    data_items,
+    theta_vals,
+    label = "Caly test",
+    model_name = "IRT",
+    item_max_scores = NULL
+) {
+
+  data_items <- as.data.frame(data_items)
+
+  if (nrow(data_items) != length(theta_vals)) {
+    return(NULL)
+  }
+
+  finite_theta <- is.finite(theta_vals)
+
+  if (sum(finite_theta) < 10) {
+    return(NULL)
+  }
+
+  breaks_theta <- unique(stats::quantile(
+    theta_vals[finite_theta],
+    probs = seq(0, 1, 0.1),
+    na.rm = TRUE
+  ))
 
   if (length(breaks_theta) < 3) {
     return(NULL)
   }
 
-  theta_groups <- cut(theta_vals, breaks = breaks_theta, include.lowest = TRUE)
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    missing_scores <- setdiff(names(data_items), names(item_max_scores))
+
+    if (length(missing_scores) > 0) {
+      item_max_scores <- c(
+        item_max_scores,
+        sapply(data_items[, missing_scores, drop = FALSE], max, na.rm = TRUE)
+      )
+    }
+
+    item_max_scores <- item_max_scores[names(data_items)]
+  }
+
+  item_max_scores <- as.numeric(item_max_scores)
+  names(item_max_scores) <- names(data_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
+
+
+
+  theta_groups <- cut(
+    theta_vals,
+    breaks = breaks_theta,
+    include.lowest = TRUE
+  )
+
+  theta_grid <- seq(
+    min(theta_vals[finite_theta], na.rm = TRUE),
+    max(theta_vals[finite_theta], na.rm = TRUE),
+    length.out = 200
+  )
 
   empirical_list <- list()
   predicted_list <- list()
-  theta_grid <- seq(min(theta_vals, na.rm = TRUE), max(theta_vals, na.rm = TRUE), length.out = 200)
 
   for (i in seq_len(ncol(data_items))) {
+
     item_name <- colnames(data_items)[i]
+    max_sc <- item_max_scores[item_name]
+
+    if (is.na(max_sc) || !is.finite(max_sc) || max_sc <= 0) {
+      max_sc <- 1
+    }
+
     tmp <- data.frame(
       item = item_name,
       theta = theta_vals,
       group = theta_groups,
-      response = data_items[, i]
+      response = data_items[[i]] / max_sc,
+      stringsAsFactors = FALSE
     )
+
+    tmp <- tmp[
+      is.finite(tmp$theta) &
+        !is.na(tmp$group) &
+        !is.na(tmp$response),
+      ,
+      drop = FALSE
+    ]
+
+    if (nrow(tmp) == 0) {
+      next
+    }
 
     emp <- stats::aggregate(
       x = list(theta = tmp$theta, response = tmp$response),
@@ -568,13 +966,31 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
       na.rm = TRUE
     )
 
-    item_obj <- mirt::extract.item(model, i)
-    prob <- mirt::probtrace(item_obj, Theta = matrix(theta_grid))[, 2]
+    item_obj <- tryCatch(
+      mirt::extract.item(model, i),
+      error = function(e) NULL
+    )
+
+    if (is.null(item_obj)) {
+      next
+    }
+
+    probs <- tryCatch(
+      mirt::probtrace(item_obj, Theta = matrix(theta_grid)),
+      error = function(e) NULL
+    )
+
+    if (is.null(probs) || ncol(probs) < 2) {
+      next
+    }
+
+    categories <- seq(0, ncol(probs) - 1)
+    expected <- as.vector(probs %*% categories) / max_sc
 
     pred <- data.frame(
       item = item_name,
       theta = theta_grid,
-      probability = prob,
+      probability = expected,
       stringsAsFactors = FALSE
     )
 
@@ -582,8 +998,18 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
     predicted_list[[item_name]] <- pred
   }
 
+  if (length(empirical_list) == 0 || length(predicted_list) == 0) {
+    return(NULL)
+  }
+
   empirical_df <- do.call(rbind, empirical_list)
   predicted_df <- do.call(rbind, predicted_list)
+
+  y_label <- if (all(item_max_scores <= 1)) {
+    "P(poprawnej)"
+  } else {
+    "Oczekiwany wynik itemu (0-1)"
+  }
 
   ggplot2::ggplot() +
     ggplot2::geom_line(
@@ -599,9 +1025,9 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
     ggplot2::facet_wrap(ggplot2::vars(.data$item)) +
     ggplot2::coord_cartesian(ylim = c(0, 1)) +
     ggplot2::labs(
-      title = paste("Empiryczne dopasowanie ICC -", label, "-", model_name),
+      title = paste("Empiryczne dopasowanie -", label, "-", model_name),
       x = "Theta",
-      y = "P(poprawnej)"
+      y = y_label
     ) +
     ggplot2::theme_minimal()
 }
@@ -611,12 +1037,23 @@ make_empirical_icc_plot <- function(model, data_items, theta_vals, label = "Caly
 
 #' @title Analiza IRT dla zestawu itemow
 #'
-#' @description Dopasowuje modele IRT 1PL, 2PL oraz opcjonalnie 3PL, porownuje ich dopasowanie, wybiera model preferowany na podstawie testow LRT i zwraca parametry itemow, wyniki theta oraz obiekty wykresow.
+#' @description
+#' Dopasowuje modele IRT odpowiednie dla typu danych.
+#' Dla itemow binarnych estymuje modele 1PL, 2PL oraz opcjonalnie 3PL.
+#' Dla itemow politomicznych lub mieszanych, przeznaczonych do testow wiedzy
+#' z punktacja czesciowa, estymuje model Rasch-PCM oraz opcjonalny model
+#' 2PL-GPCM z wolnymi dyskryminacjami.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami na itemy.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana przy tworzeniu wykresow.
 #' @param show_plots Wartosc logiczna okreslajaca, czy przygotowac obiekty wykresow IRT.
-#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania ICC.
+#' @param show_empirical_icc Wartosc logiczna okreslajaca, czy przygotowac wykres empirycznego dopasowania.
+#' @param item_type Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
+#' @param run_optional_2pl_gpcm Wartosc logiczna. Czy dla itemow politomicznych/mieszanych probowac estymowac model 2PL-GPCM.
+#' @param min_n_2pl_gpcm Minimalna liczba osob potrzebna do estymacji modelu 2PL-GPCM.
+#' @param observations_per_parameter Minimalna liczba obserwacji na jeden wolny parametr w modelu 2PL-GPCM.
+#' @param alpha Poziom istotnosci uzywany przy porownaniu modeli.
 #'
 #' @return Lista zawierajaca status, modele IRT, porownania modeli, parametry itemow, wyniki theta, wykresy i dane uzyte w analizie.
 #'
@@ -628,8 +1065,21 @@ run_irt_for_items <- function(
     data_items,
     label = "Caly test",
     show_plots = TRUE,
-    show_empirical_icc = TRUE
+    show_empirical_icc = TRUE,
+    item_type = "auto",
+    item_max_scores = NULL,
+    run_optional_2pl_gpcm = TRUE,
+    min_n_2pl_gpcm = 300,
+    observations_per_parameter = 10,
+    alpha = 0.05
 ) {
+
+  item_type <- match.arg(
+    item_type,
+    choices = c("auto", "binary", "polytomous", "mixed")
+  )
+
+  data_items <- as.data.frame(data_items)
 
   vars <- sapply(data_items, stats::var, na.rm = TRUE)
   data_items <- data_items[, vars > 0 & !is.na(vars), drop = FALSE]
@@ -639,100 +1089,557 @@ run_irt_for_items <- function(
 
   if (ncol(data_items) < 3 || nrow(data_items) < 50) {
     return(list(
-      status = make_status(FALSE, "too_few_data", "Za malo danych do analizy IRT (min. 3 itemy, 50 osob)."),
+      status = make_status(
+        FALSE,
+        "too_few_data",
+        "Za malo danych do analizy IRT (min. 3 itemy, 50 osob)."
+      ),
       label = label,
       data_items = data_items
     ))
+  }
+
+  data_items[] <- lapply(data_items, function(x) {
+    if (is.factor(x) || is.ordered(x)) {
+      as.numeric(as.character(x))
+    } else {
+      as.numeric(x)
+    }
+  })
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    missing_max_scores <- setdiff(names(data_items), names(item_max_scores))
+
+    if (length(missing_max_scores) > 0) {
+      inferred_max_scores <- sapply(
+        data_items[, missing_max_scores, drop = FALSE],
+        max,
+        na.rm = TRUE
+      )
+
+      item_max_scores <- c(item_max_scores, inferred_max_scores)
+    }
+
+    item_max_scores <- item_max_scores[names(data_items)]
+  }
+
+  item_max_scores <- as.integer(item_max_scores)
+  names(item_max_scores) <- names(data_items)
+
+  invalid_max_scores <- !is.finite(item_max_scores) | item_max_scores < 1
+
+  if (any(invalid_max_scores)) {
+    item_max_scores[invalid_max_scores] <- sapply(
+      data_items[, invalid_max_scores, drop = FALSE],
+      max,
+      na.rm = TRUE
+    )
+  }
+
+  item_max_scores[item_max_scores < 1 | !is.finite(item_max_scores)] <- 1L
+
+  all_binary <- all(item_max_scores == 1L)
+  any_binary <- any(item_max_scores == 1L)
+
+  inferred_item_type <- if (all_binary) {
+    "binary"
+  } else if (!any_binary) {
+    "polytomous"
+  } else {
+    "mixed"
+  }
+
+  if (item_type == "auto") {
+    item_type <- inferred_item_type
+  }
+
+  if (item_type != inferred_item_type) {
+    item_type <- inferred_item_type
   }
 
   n_items <- ncol(data_items)
   model_spec <- paste0("F = 1-", n_items)
 
-  model_1pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "1PL", verbose = FALSE),
-    error = function(e) e
-  )
+  get_model_ic <- function(model, model_name) {
+    loglik <- mirt::extract.mirt(model, "logLik")
 
-  if (inherits(model_1pl, "error")) {
-    return(list(
-      status = make_status(FALSE, "model_1pl_error", conditionMessage(model_1pl)),
-      label = label,
-      data_items = data_items
-    ))
+    data.frame(
+      Model = model_name,
+      AIC = round(as.numeric(mirt::extract.mirt(model, "AIC")), 1),
+      BIC = round(as.numeric(mirt::extract.mirt(model, "BIC")), 1),
+      LogLik = round(as.numeric(loglik), 1),
+      df = tryCatch(
+        as.numeric(mirt::extract.mirt(model, "nest")),
+        error = function(e) NA_real_
+      ),
+      stringsAsFactors = FALSE
+    )
   }
 
-  model_2pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "2PL", verbose = FALSE),
-    error = function(e) e
-  )
-
-  if (inherits(model_2pl, "error")) {
-    return(list(
-      status = make_status(FALSE, "model_2pl_error", conditionMessage(model_2pl)),
-      label = label,
-      model_1pl = model_1pl,
-      data_items = data_items
-    ))
+  model_converged <- function(model) {
+    tryCatch(
+      isTRUE(model@OptimInfo$converged),
+      error = function(e) FALSE
+    )
   }
 
-  model_3pl <- tryCatch(
-    mirt::mirt(data_items, model = model_spec, itemtype = "3PL", verbose = FALSE),
-    error = function(e) NULL
-  )
+  # ---------------------------------------------------------------
+  # Sciezka binarna: 1PL / 2PL / 3PL
+  # ---------------------------------------------------------------
 
-  if (!is.null(model_3pl)) {
-    anova_result <- stats::anova(model_1pl, model_2pl, model_3pl)
-  } else {
-    anova_result <- stats::anova(model_1pl, model_2pl)
-  }
+  if (item_type == "binary") {
 
-  comparison_df <- data.frame(
-    Model = rownames(anova_result),
-    AIC = round(anova_result$AIC, 1),
-    BIC = round(anova_result$BIC, 1),
-    LogLik = round(anova_result$logLik, 1),
-    df = anova_result$df,
-    stringsAsFactors = FALSE
-  )
+    model_1pl <- tryCatch(
+      mirt::mirt(
+        data_items,
+        model = model_spec,
+        itemtype = "1PL",
+        verbose = FALSE
+      ),
+      error = function(e) e
+    )
 
-  lrt_labels <- c("1PL vs 2PL", "2PL vs 3PL")[seq_len(nrow(anova_result) - 1)]
+    if (inherits(model_1pl, "error")) {
+      return(list(
+        status = make_status(FALSE, "model_1pl_error", conditionMessage(model_1pl)),
+        label = label,
+        item_type = item_type,
+        data_items = data_items
+      ))
+    }
 
-  lrt_df <- data.frame(
-    Porownanie = lrt_labels,
-    Chi2 = round(anova_result$X2[-1], 2),
-    df = anova_result$df[-1] - anova_result$df[-nrow(anova_result)],
-    p = round(anova_result$p[-1], 4),
-    stringsAsFactors = FALSE
-  )
+    model_2pl <- tryCatch(
+      mirt::mirt(
+        data_items,
+        model = model_spec,
+        itemtype = "2PL",
+        verbose = FALSE
+      ),
+      error = function(e) e
+    )
 
-  preferred_model <- model_1pl
-  preferred_name <- "1PL"
+    if (inherits(model_2pl, "error")) {
+      return(list(
+        status = make_status(FALSE, "model_2pl_error", conditionMessage(model_2pl)),
+        label = label,
+        item_type = item_type,
+        model_1pl = model_1pl,
+        data_items = data_items
+      ))
+    }
 
-  p_val_2pl <- lrt_df$p[1]
+    model_3pl <- tryCatch(
+      mirt::mirt(
+        data_items,
+        model = model_spec,
+        itemtype = "3PL",
+        verbose = FALSE
+      ),
+      error = function(e) NULL
+    )
 
-  if (!is.na(p_val_2pl) && p_val_2pl < 0.05) {
-    preferred_model <- model_2pl
-    preferred_name <- "2PL"
+    if (!is.null(model_3pl)) {
+      anova_result <- mirt::anova(model_1pl, model_2pl, model_3pl)
+    } else {
+      anova_result <- mirt::anova(model_1pl, model_2pl)
+    }
 
-    if (!is.null(model_3pl) && nrow(lrt_df) >= 2) {
-      p_val_3pl <- lrt_df$p[2]
+    comparison_df <- data.frame(
+      Model = rownames(anova_result),
+      AIC = round(anova_result$AIC, 1),
+      BIC = round(anova_result$BIC, 1),
+      LogLik = round(anova_result$logLik, 1),
+      df = anova_result$df,
+      stringsAsFactors = FALSE
+    )
 
-      if (!is.na(p_val_3pl) && p_val_3pl < 0.05) {
-        preferred_model <- model_3pl
-        preferred_name <- "3PL"
+    lrt_labels <- c("1PL vs 2PL", "2PL vs 3PL")[seq_len(nrow(anova_result) - 1)]
+
+    lrt_df <- data.frame(
+      Porownanie = lrt_labels,
+      Chi2 = round(anova_result$X2[-1], 2),
+      df = anova_result$df[-1],
+      p = round(anova_result$p[-1], 4),
+      stringsAsFactors = FALSE
+    )
+
+    preferred_model <- model_1pl
+    preferred_name <- "1PL"
+
+    p_val_2pl <- lrt_df$p[1]
+
+    if (!is.na(p_val_2pl) && p_val_2pl < alpha) {
+      preferred_model <- model_2pl
+      preferred_name <- "2PL"
+
+      if (!is.null(model_3pl) && nrow(lrt_df) >= 2) {
+        p_val_3pl <- lrt_df$p[2]
+
+        if (!is.na(p_val_3pl) && p_val_3pl < alpha) {
+          preferred_model <- model_3pl
+          preferred_name <- "3PL"
+        }
       }
+    }
+
+    params_1pl_df <- make_params_table(model_1pl, "1PL")
+    params_2pl_df <- make_params_table(model_2pl, "2PL")
+    params_3pl_df <- if (!is.null(model_3pl)) {
+      make_params_table(model_3pl, "3PL")
+    } else {
+      NULL
+    }
+
+    theta_scores <- tryCatch(
+      mirt::fscores(preferred_model, method = "EAP", full.scores.SE = TRUE),
+      error = function(e) e
+    )
+
+    if (inherits(theta_scores, "error")) {
+      return(list(
+        status = make_status(FALSE, "theta_error", conditionMessage(theta_scores)),
+        label = label,
+        item_type = item_type,
+        preferred_model = preferred_model,
+        preferred_name = preferred_name,
+        data_items = data_items
+      ))
+    }
+
+    theta_vals <- theta_scores[, 1]
+
+    plots <- if (show_plots) {
+      tryCatch(
+        make_irt_plots(
+          preferred_model,
+          data_items,
+          theta_vals,
+          label,
+          preferred_name,
+          show_empirical_icc,
+          item_type = "binary",
+          item_max_scores = item_max_scores
+        ),
+        error = function(e) {
+          list(
+            plot_status = make_status(FALSE, "plot_error", conditionMessage(e))
+          )
+        }
+      )
+    } else {
+      list()
+    }
+
+    return(list(
+      status = make_status(TRUE, "ok", NA_character_),
+      label = label,
+      item_type = "binary",
+      item_max_scores = item_max_scores,
+      n_persons = nrow(data_items),
+      n_items = n_items,
+      model_spec = model_spec,
+      model_1pl = model_1pl,
+      model_2pl = model_2pl,
+      model_3pl = model_3pl,
+      preferred_model = preferred_model,
+      preferred_name = preferred_name,
+      comparison_df = comparison_df,
+      params_1pl_df = params_1pl_df,
+      params_2pl_df = params_2pl_df,
+      params_3pl_df = params_3pl_df,
+      theta_scores = theta_scores,
+      anova = anova_result,
+      lrt = lrt_df,
+      plots = plots,
+      data_items = data_items
+    ))
+  }
+
+  # ---------------------------------------------------------------
+  # Sciezka politomiczna / mieszana: Rasch-PCM / 2PL-GPCM
+  # ---------------------------------------------------------------
+
+  itemtype_vector <- ifelse(
+    item_max_scores == 1L,
+    "2PL",
+    "gpcm"
+  )
+
+  itemtype_vector <- unname(itemtype_vector)
+
+  rasch_pcm_fit <- tryCatch({
+
+    values_rasch_pcm <- mirt::mirt(
+      data_items,
+      model = model_spec,
+      itemtype = itemtype_vector,
+      pars = "values",
+      verbose = FALSE
+    )
+
+    values_rasch_pcm$value[values_rasch_pcm$name == "a1"] <- 1
+    values_rasch_pcm$est[values_rasch_pcm$name == "a1"] <- FALSE
+
+    model_rasch_pcm <- mirt::mirt(
+      data_items,
+      model = model_spec,
+      itemtype = itemtype_vector,
+      pars = values_rasch_pcm,
+      verbose = FALSE
+    )
+
+    list(
+      values = values_rasch_pcm,
+      model = model_rasch_pcm
+    )
+
+  }, error = function(e) e)
+
+  if (inherits(rasch_pcm_fit, "error")) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "model_rasch_pcm_error",
+        conditionMessage(rasch_pcm_fit)
+      ),
+      label = label,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      data_items = data_items
+    ))
+  }
+
+  model_rasch_pcm <- rasch_pcm_fit$model
+  values_rasch_pcm <- rasch_pcm_fit$values
+
+  if (!model_converged(model_rasch_pcm)) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "model_rasch_pcm_not_converged",
+        "Model Rasch-PCM nie osiagnal zbieznosci."
+      ),
+      label = label,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      model_rasch_pcm = model_rasch_pcm,
+      data_items = data_items
+    ))
+  }
+
+  comparison_df <- get_model_ic(model_rasch_pcm, "Rasch_PCM")
+  comparison_df$free_parameters <- sum(values_rasch_pcm$est, na.rm = TRUE)
+  comparison_df$LRT_p <- NA_real_
+  comparison_df$admissible_slopes <- NA
+  comparison_df$selected <- TRUE
+  comparison_df$note <- "model podstawowy"
+
+  model_2pl_gpcm <- NULL
+  values_2pl_gpcm <- NULL
+  lrt_result <- NULL
+  lrt_df <- data.frame(
+    Porownanie = character(0),
+    Chi2 = numeric(0),
+    df = numeric(0),
+    p = numeric(0),
+    stringsAsFactors = FALSE
+  )
+
+  free_slope_status <- "nie_estymowano"
+
+  if (isTRUE(run_optional_2pl_gpcm)) {
+
+    free_fit <- tryCatch({
+
+      values_free <- mirt::mirt(
+        data_items,
+        model = model_spec,
+        itemtype = itemtype_vector,
+        pars = "values",
+        verbose = FALSE
+      )
+
+      free_parameters <- sum(values_free$est, na.rm = TRUE)
+
+      required_n <- max(
+        min_n_2pl_gpcm,
+        observations_per_parameter * free_parameters
+      )
+
+      if (nrow(data_items) < required_n) {
+        list(
+          model = NULL,
+          values = values_free,
+          required_n = required_n,
+          status = paste0("za_malo_obserwacji; wymagane=", required_n)
+        )
+      } else {
+        model_free <- mirt::mirt(
+          data_items,
+          model = model_spec,
+          itemtype = itemtype_vector,
+          verbose = FALSE
+        )
+
+        list(
+          model = model_free,
+          values = values_free,
+          required_n = required_n,
+          status = "oszacowano"
+        )
+      }
+
+    }, error = function(e) e)
+
+    if (inherits(free_fit, "error")) {
+
+      free_slope_status <- paste0(
+        "blad_estymacji: ",
+        conditionMessage(free_fit)
+      )
+
+    } else if (is.null(free_fit$model)) {
+
+      free_slope_status <- free_fit$status
+
+    } else {
+
+      model_2pl_gpcm <- free_fit$model
+      values_2pl_gpcm <- free_fit$values
+
+      params_free <- make_params_table(model_2pl_gpcm, "2PL_GPCM")
+      slopes <- params_free$a_dyskryminacja
+
+      admissible_slopes <- all(
+        is.finite(slopes) &
+          slopes >= 0.20 &
+          slopes <= 5
+      )
+
+      lrt_result <- tryCatch(
+        mirt::anova(model_rasch_pcm, model_2pl_gpcm),
+        error = function(e) e
+      )
+
+      lrt_p <- NA_real_
+      lrt_chi2 <- NA_real_
+      lrt_df_val <- NA_real_
+
+      if (!inherits(lrt_result, "error")) {
+        p_col <- grep("^p$", names(lrt_result), value = TRUE)[1]
+        x2_col <- grep("^X2$", names(lrt_result), value = TRUE)[1]
+
+        if (!is.na(p_col)) {
+          lrt_p <- as.numeric(utils::tail(lrt_result[[p_col]], 1))
+        }
+
+        if (!is.na(x2_col)) {
+          lrt_chi2 <- as.numeric(utils::tail(lrt_result[[x2_col]], 1))
+        }
+
+        if ("df" %in% names(lrt_result) && nrow(lrt_result) >= 2) {
+          lrt_df_val <- as.numeric(lrt_result$df[2])
+        }
+
+        lrt_df <- data.frame(
+          Porownanie = "Rasch_PCM vs 2PL_GPCM",
+          Chi2 = round(lrt_chi2, 2),
+          df = lrt_df_val,
+          p = round(lrt_p, 4),
+          stringsAsFactors = FALSE
+        )
+      }
+
+      ic_free <- get_model_ic(model_2pl_gpcm, "2PL_GPCM")
+      ic_free$free_parameters <- sum(values_2pl_gpcm$est, na.rm = TRUE)
+      ic_free$LRT_p <- lrt_p
+      ic_free$admissible_slopes <- admissible_slopes
+
+      selected_free <-
+        model_converged(model_2pl_gpcm) &&
+        admissible_slopes &&
+        is.finite(ic_free$BIC) &&
+        is.finite(comparison_df$BIC[1]) &&
+        ic_free$BIC < comparison_df$BIC[1] &&
+        is.finite(lrt_p) &&
+        lrt_p < alpha
+
+      ic_free$selected <- selected_free
+      ic_free$note <- if (selected_free) {
+        "spelnia_kryteria"
+      } else {
+        "nie_spelnia_kryteriow"
+      }
+
+      comparison_df <- rbind(
+        comparison_df,
+        ic_free
+      )
+
+      comparison_df$selected[comparison_df$Model == "Rasch_PCM"] <- !selected_free
+
+      free_slope_status <- ic_free$note[1]
     }
   }
 
-  params_1pl_df <- make_params_table(model_1pl, "1PL")
-  params_2pl_df <- make_params_table(model_2pl, "2PL")
-  params_3pl_df <- if (!is.null(model_3pl)) make_params_table(model_3pl, "3PL") else NULL
+  preferred_model <- model_rasch_pcm
+  preferred_name <- "Rasch_PCM"
 
-  theta_scores <- mirt::fscores(preferred_model, method = "EAP")
+  if (
+    !is.null(model_2pl_gpcm) &&
+      "2PL_GPCM" %in% comparison_df$Model &&
+      isTRUE(comparison_df$selected[comparison_df$Model == "2PL_GPCM"][1])
+  ) {
+    preferred_model <- model_2pl_gpcm
+    preferred_name <- "2PL_GPCM"
+  }
+
+  params_rasch_pcm_df <- make_params_table(model_rasch_pcm, "Rasch_PCM")
+
+  params_2pl_gpcm_df <- if (!is.null(model_2pl_gpcm)) {
+    make_params_table(model_2pl_gpcm, "2PL_GPCM")
+  } else {
+    NULL
+  }
+
+  theta_scores <- tryCatch(
+    mirt::fscores(preferred_model, method = "EAP", full.scores.SE = TRUE),
+    error = function(e) e
+  )
+
+  if (inherits(theta_scores, "error")) {
+    return(list(
+      status = make_status(FALSE, "theta_error", conditionMessage(theta_scores)),
+      label = label,
+      item_type = item_type,
+      preferred_model = preferred_model,
+      preferred_name = preferred_name,
+      data_items = data_items
+    ))
+  }
+
   theta_vals <- theta_scores[, 1]
 
   plots <- if (show_plots) {
-    make_irt_plots(preferred_model, data_items, theta_vals, label, preferred_name, show_empirical_icc)
+    tryCatch(
+      make_irt_plots(
+        preferred_model,
+        data_items,
+        theta_vals,
+        label,
+        preferred_name,
+        show_empirical_icc,
+        item_type = item_type,
+        item_max_scores = item_max_scores
+      ),
+      error = function(e) {
+        list(
+          plot_status = make_status(FALSE, "plot_error", conditionMessage(e))
+        )
+      }
+    )
   } else {
     list()
   }
@@ -740,23 +1647,35 @@ run_irt_for_items <- function(
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
+    item_type = item_type,
+    item_max_scores = item_max_scores,
+    itemtype_vector = stats::setNames(itemtype_vector, names(data_items)),
     n_persons = nrow(data_items),
-    n_items = ncol(data_items),
+    n_items = n_items,
     model_spec = model_spec,
-    model_1pl = model_1pl,
-    model_2pl = model_2pl,
-    model_3pl = model_3pl,
+
+    model_rasch_pcm = model_rasch_pcm,
+    model_2pl_gpcm = model_2pl_gpcm,
+
     preferred_model = preferred_model,
     preferred_name = preferred_name,
     comparison_df = comparison_df,
-    params_1pl_df = params_1pl_df,
-    params_2pl_df = params_2pl_df,
-    params_3pl_df = params_3pl_df,
     theta_scores = theta_scores,
-    anova = anova_result,
+    anova = lrt_result,
     lrt = lrt_df,
     plots = plots,
-    data_items = data_items
+    data_items = data_items,
+
+    params_rasch_pcm_df = params_rasch_pcm_df,
+    params_2pl_gpcm_df = params_2pl_gpcm_df,
+    free_slope_status = free_slope_status,
+
+    model_1pl = model_rasch_pcm,
+    model_2pl = model_2pl_gpcm,
+    model_3pl = NULL,
+    params_1pl_df = params_rasch_pcm_df,
+    params_2pl_df = params_2pl_gpcm_df,
+    params_3pl_df = NULL
   )
 }
 
@@ -766,15 +1685,21 @@ run_irt_for_items <- function(
 
 #' @title Analiza dopasowania itemow w modelu IRT
 #'
-#' @description Oblicza statystyki dopasowania itemow dla wybranego modelu IRT, w tym S-X2 oraz infit/outfit, a opcjonalnie takze PV-Q1*. Funkcja zwraca tabele i wykresy bez ich wyswietlania.
+#' @description
+#' Oblicza statystyki dopasowania itemow dla wybranego modelu IRT.
+#' Funkcja obsluguje modele binarne oraz modele partial-credit dla itemow
+#' punktowanych politomicznie. Zwraca statystyke S-X2, opcjonalnie infit/outfit
+#' oraz wykres diagnostyczny, bez wypisywania wynikow do konsoli.
 #'
 #' @param irt_result Lista wynikowa zwrocona przez `run_irt_for_items()`.
 #' @param label Etykieta analizy zapisywana w wyniku i uzywana w tytule wykresu.
 #' @param run_pvq1 Wartosc logiczna okreslajaca, czy probowac obliczyc statystyke PV-Q1*.
 #' @param pvq1_n_max Maksymalna liczba obserwacji, dla ktorej obliczana jest PV-Q1*.
 #' @param pvq1_items_max Maksymalna liczba itemow, dla ktorej obliczana jest PV-Q1*.
+#' @param alpha Poziom istotnosci uzywany do flagowania niedopasowania S-X2.
 #'
-#' @return Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze statystykami, status PV-Q1* oraz obiekt wykresu.
+#' @return Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze
+#' statystykami, status PV-Q1* oraz obiekt wykresu.
 #'
 #' @examples
 #' # irt <- run_irt_for_items(data_items, show_plots = FALSE)
@@ -786,51 +1711,119 @@ run_item_fit <- function(
     label = "Caly test",
     run_pvq1 = FALSE,
     pvq1_n_max = 500,
-    pvq1_items_max = 30
+    pvq1_items_max = 30,
+    alpha = 0.05
 ) {
 
-  if (is.null(irt_result) || isFALSE(irt_result$status$ok[1])) {
+  if (
+    is.null(irt_result) ||
+      is.null(irt_result$status) ||
+      isFALSE(irt_result$status$ok[1]) ||
+      is.null(irt_result$preferred_model)
+  ) {
     return(list(
-      status = make_status(FALSE, "no_irt_model", "Brak modelu IRT - pominieto item fit."),
+      status = make_status(
+        FALSE,
+        "no_irt_model",
+        "Brak modelu IRT - pominieto item fit."
+      ),
       label = label
     ))
   }
 
   model <- irt_result$preferred_model
   model_name <- irt_result$preferred_name
+  item_type <- if (!is.null(irt_result$item_type)) irt_result$item_type else NA_character_
+  data_items <- irt_result$data_items
+
+  item_max_scores <- irt_result$item_max_scores
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(data_items, max, na.rm = TRUE)
+  } else {
+    item_max_scores <- item_max_scores[colnames(data_items)]
+  }
+
+  item_max_scores <- as.numeric(item_max_scores)
+  names(item_max_scores) <- colnames(data_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1
+
+  # ---------------------------------------------------------------
+  # S-X2
+  # ---------------------------------------------------------------
 
   sx2_result <- tryCatch(
-    mirt::itemfit(model, fit_stats = "S_X2"),
+    mirt::itemfit(
+      model,
+      fit_stats = "S_X2",
+      na.rm = TRUE
+    ),
     error = function(e) e
   )
-
+  
   sx2_df <- NULL
   sx2_status <- make_status(TRUE, "ok", NA_character_)
 
   if (inherits(sx2_result, "error")) {
-    sx2_status <- make_status(FALSE, "sx2_error", conditionMessage(sx2_result))
+
+    sx2_status <- make_status(
+      FALSE,
+      "sx2_error",
+      conditionMessage(sx2_result)
+    )
     sx2_result <- NULL
+
   } else {
-    sx2_col <- grep("S_X2", names(sx2_result), value = TRUE)[1]
-    df_col <- grep("df", names(sx2_result), value = TRUE)[1]
-    p_col <- grep("^p", names(sx2_result), value = TRUE)[1]
+
+    sx2_col <- grep("S_X2|S-X2", names(sx2_result), value = TRUE)[1]
+    df_col <- grep("^df$|df", names(sx2_result), value = TRUE)[1]
+    p_col <- grep("^p$|p$", names(sx2_result), value = TRUE)[1]
 
     if (!is.na(sx2_col) && !is.na(df_col) && !is.na(p_col)) {
+
+      sx2_items <- get_item_labels(
+        sx2_result,
+        fallback_items = names(item_max_scores)
+      )
+
       sx2_df <- data.frame(
-        Item = rownames(sx2_result),
-        S_X2 = round(sx2_result[[sx2_col]], 3),
-        df = sx2_result[[df_col]],
-        p = round(sx2_result[[p_col]], 4),
+        Item = sx2_items,
+        Max_score = as.numeric(item_max_scores[sx2_items]),
+        S_X2 = round(as.numeric(sx2_result[[sx2_col]]), 3),
+        df = as.numeric(sx2_result[[df_col]]),
+        p = round(as.numeric(sx2_result[[p_col]]), 4),,
+        RMSEA = if ("RMSEA.S_X2" %in% names(sx2_result)) round(as.numeric(sx2_result[["RMSEA.S_X2"]]), 3) else NA_real_,
         stringsAsFactors = FALSE
       )
 
+      sx2_df$p_holm <- round(
+        stats::p.adjust(sx2_df$p, method = "holm"),
+        4
+      )
+
       sx2_df$Dopasowanie <- ifelse(
-        sx2_df$p >= 0.05,
-        "OK",
-        ifelse(sx2_df$p >= 0.01, "Watpliwe", "Zle")
+        is.na(sx2_df$p_holm),
+        "Brak danych",
+        ifelse(
+          sx2_df$p_holm >= alpha,
+          "OK",
+          "Sygnal niedopasowania"
+        )
+      )
+
+    } else {
+
+      sx2_status <- make_status(
+        FALSE,
+        "sx2_columns_missing",
+        "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
       )
     }
   }
+
+  # ---------------------------------------------------------------
+  # Infit / outfit
+  # ---------------------------------------------------------------
 
   infit_result <- tryCatch(
     mirt::itemfit(model, fit_stats = "infit"),
@@ -841,109 +1834,236 @@ run_item_fit <- function(
   infit_status <- make_status(TRUE, "ok", NA_character_)
 
   if (inherits(infit_result, "error")) {
-    infit_status <- make_status(FALSE, "infit_error", conditionMessage(infit_result))
+
+    infit_status <- make_status(
+      FALSE,
+      "infit_error",
+      conditionMessage(infit_result)
+    )
     infit_result <- NULL
+
   } else {
+
     infit_col <- grep("infit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
     outfit_col <- grep("outfit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
 
     if (!is.na(infit_col) && !is.na(outfit_col)) {
+
+      infit_items <- get_item_labels(
+        infit_result,
+        fallback_items = names(item_max_scores)
+      )
+
       infit_df <- data.frame(
-        Item = rownames(infit_result),
-        Infit_MNSQ = round(infit_result[[infit_col]], 3),
-        Outfit_MNSQ = round(infit_result[[outfit_col]], 3),
+        Item = infit_items,
+        Infit_MNSQ = round(as.numeric(infit_result[[infit_col]]), 3),
+        Outfit_MNSQ = round(as.numeric(infit_result[[outfit_col]]), 3),
         stringsAsFactors = FALSE
       )
 
       infit_df$Infit_ocena <- ifelse(
-        infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30,
-        "OK",
-        ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        is.na(infit_df$Infit_MNSQ),
+        "Brak danych",
+        ifelse(
+          infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30,
+          "OK",
+          ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        )
       )
 
       infit_df$Outfit_ocena <- ifelse(
-        infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30,
-        "OK",
-        ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        is.na(infit_df$Outfit_MNSQ),
+        "Brak danych",
+        ifelse(
+          infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30,
+          "OK",
+          ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+        )
+      )
+
+    } else {
+
+      infit_status <- make_status(
+        FALSE,
+        "infit_columns_missing",
+        "Nie rozpoznano kolumn infit/outfit w wyniku mirt::itemfit()."
       )
     }
   }
 
-  n_obs <- nrow(irt_result$data_items)
-  n_items_fit <- ncol(irt_result$data_items)
-  pvq1_result <- NULL
-  pvq1_status <- make_status(FALSE, "pvq1_skipped", "PV-Q1* pominieto.")
+  # ---------------------------------------------------------------
+  # PV-Q1*
+  # ---------------------------------------------------------------
 
+  n_obs <- nrow(data_items)
+  n_items_fit <- ncol(data_items)
+
+  pvq1_result <- NULL
+  pvq1_df <- NULL
+  pvq1_status <- make_status(FALSE, "pvq1_skipped", "PV-Q1* pominieto.")
+  
   if (run_pvq1 && n_obs <= pvq1_n_max && n_items_fit <= pvq1_items_max) {
+
     pvq1_result <- tryCatch(
       mirt::itemfit(model, fit_stats = "PV_Q1*"),
       error = function(e) e
     )
 
     if (inherits(pvq1_result, "error")) {
-      pvq1_status <- make_status(FALSE, "pvq1_error", conditionMessage(pvq1_result))
+      pvq1_status <- make_status(
+        FALSE,
+        "pvq1_error",
+        conditionMessage(pvq1_result)
+      )
       pvq1_result <- NULL
-    } else {
+        } else {
+
+      pvq1_items <- get_item_labels(
+        pvq1_result,
+        fallback_items = names(item_max_scores)
+      )
+
+      pvq1_df <- as.data.frame(pvq1_result)
+
+      if ("item" %in% names(pvq1_df)) {
+        pvq1_df$item <- NULL
+      }
+
+      if ("Item" %in% names(pvq1_df)) {
+        pvq1_df$Item <- NULL
+      }
+
+      pvq1_df <- data.frame(
+        Item = pvq1_items,
+        pvq1_df,
+        check.names = FALSE,
+        stringsAsFactors = FALSE
+      )
+
+      rownames(pvq1_df) <- NULL
+
       pvq1_status <- make_status(TRUE, "ok", NA_character_)
     }
   }
 
+  # ---------------------------------------------------------------
+  # Laczenie wynikow i wykres
+  # ---------------------------------------------------------------
+
+  fit_combined <- NULL
   fit_plot_data <- NULL
   p_fit <- NULL
 
-  if (!is.null(infit_result) && !is.null(sx2_result)) {
-    p_col <- grep("^p", names(sx2_result), value = TRUE)[1]
-    infit_col <- grep("infit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
-    outfit_col <- grep("outfit", names(infit_result), ignore.case = TRUE, value = TRUE)[1]
+  if (!is.null(sx2_df) || !is.null(infit_df)) {
 
-    if (!is.na(p_col) && !is.na(infit_col) && !is.na(outfit_col)) {
-      fit_plot_data <- data.frame(
-        Item = rownames(infit_result),
-        Infit = infit_result[[infit_col]],
-        Outfit = infit_result[[outfit_col]],
-        S_X2_p = sx2_result[[p_col]],
-        stringsAsFactors = FALSE
+    if (!is.null(sx2_df) && !is.null(infit_df)) {
+
+      fit_combined <- merge(
+        sx2_df,
+        infit_df,
+        by = "Item",
+        all = TRUE
       )
 
-      p_fit <- ggplot2::ggplot(fit_plot_data, ggplot2::aes(x = .data$Infit, y = .data$Outfit)) +
-        ggplot2::geom_point(ggplot2::aes(color = .data$S_X2_p < 0.05), size = 3) +
-        ggplot2::geom_text(ggplot2::aes(label = .data$Item), size = 2, vjust = -1, alpha = 0.6) +
-        ggplot2::geom_hline(yintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-        ggplot2::geom_vline(xintercept = c(0.70, 1.30), linetype = "dashed", color = "red", alpha = 0.5) +
-        ggplot2::labs(
-          title = paste("Mapa dopasowania itemow -", label),
-          x = "Infit MNSQ",
-          y = "Outfit MNSQ",
-          color = "S-X2 p < 0.05"
-        ) +
-        ggplot2::theme_minimal()
+    } else if (!is.null(sx2_df)) {
+
+      fit_combined <- sx2_df
+
+    } else {
+
+      fit_combined <- infit_df
     }
   }
+
+  if (!is.null(sx2_df) && !is.null(infit_df)) {
+
+    fit_plot_data <- merge(
+      sx2_df[, c("Item", "p", "p_holm", "Dopasowanie")],
+      infit_df[, c("Item", "Infit_MNSQ", "Outfit_MNSQ")],
+      by = "Item",
+      all = TRUE
+    )
+
+    fit_plot_data$S_X2_flag <- !is.na(fit_plot_data$p_holm) &
+      fit_plot_data$p_holm < alpha
+
+    p_fit <- ggplot2::ggplot(
+      fit_plot_data,
+      ggplot2::aes(x = .data$Infit_MNSQ, y = .data$Outfit_MNSQ)
+    ) +
+      ggplot2::geom_point(
+        ggplot2::aes(shape = .data$S_X2_flag),
+        size = 3
+      ) +
+      ggplot2::geom_text(
+        ggplot2::aes(label = .data$Item),
+        size = 2,
+        vjust = -1,
+        alpha = 0.6
+      ) +
+      ggplot2::geom_hline(
+        yintercept = c(0.70, 1.30),
+        linetype = "dashed",
+        alpha = 0.5
+      ) +
+      ggplot2::geom_vline(
+        xintercept = c(0.70, 1.30),
+        linetype = "dashed",
+        alpha = 0.5
+      ) +
+      ggplot2::labs(
+        title = paste("Mapa dopasowania itemow -", label, "-", model_name),
+        subtitle = paste("Typ itemow:", item_type),
+        x = "Infit MNSQ",
+        y = "Outfit MNSQ",
+        shape = paste0("S-X2 Holm p < ", alpha)
+      ) +
+      ggplot2::theme_minimal()
+  }
+
+
+  # Informacja o brakach danych dla S-X2
+  sx2_n_total <- nrow(data_items)
+  sx2_n_missing_rows <- sum(rowSums(is.na(data_items)) > 0)
+  sx2_na_info <- data.frame(
+    N_total = sx2_n_total,
+    N_complete = sx2_n_total - sx2_n_missing_rows,
+    N_rows_with_missing = sx2_n_missing_rows,
+    Percent_rows_with_missing = round(100 * sx2_n_missing_rows / max(sx2_n_total, 1), 1),
+    stringsAsFactors = FALSE
+  )
 
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
     model_name = model_name,
+    item_type = item_type,
     sx2 = sx2_result,
     sx2_df = sx2_df,
     sx2_status = sx2_status,
+    sx2_na_info = sx2_na_info,
     infit = infit_result,
     infit_df = infit_df,
     infit_status = infit_status,
+    fit_combined = fit_combined,
     pvq1 = pvq1_result,
+    pvq1_df = pvq1_df,
     pvq1_status = pvq1_status,
     fit_plot_data = fit_plot_data,
     plots = list(fit_map = p_fit)
   )
 }
-
 # ============================================================================
 # ANALIZA DIF
 # ============================================================================
 
 #' @title Analiza DIF dla pary grup
 #'
-#' @description Wykonuje logistyczna analize DIF dla dwoch wskazanych grup, korzystajac z wektora theta jako wyniku kontrolnego, i zwraca klasyfikacje ETS oraz wykres roznic.
+#' @description
+#' Wykonuje analize DIF dla dwoch wskazanych grup. Dla itemow binarnych
+#' zachowuje dotychczasowa logistyczna analize DIF z pakietu `sirt`.
+#' Dla itemow politomicznych i mieszanych wykonuje modelowa analize DIF
+#' w pakiecie `mirt`, zgodna z modelami partial-credit.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami itemowymi.
 #' @param group_vec Wektor z przynaleznoscia osob do grup.
@@ -952,8 +2072,15 @@ run_item_fit <- function(
 #' @param group_focal Wartosc identyfikujaca grupe fokalna.
 #' @param label Etykieta porownania grup.
 #' @param model_name Opcjonalna nazwa modelu, z ktorego pochodza oszacowania theta.
+#' @param item_type Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
+#' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
+#' @param min_group_n Minimalna liczba osob w kazdej grupie.
+#' @param min_items Minimalna liczba itemow po filtrowaniu.
+#' @param min_category_n Minimalna liczebnosc kategorii uzywana w diagnostyce.
+#' @param alpha Poziom istotnosci uzywany do flagowania DIF.
 #'
-#' @return Lista zawierajaca status, informacje o grupach, wyniki DIF, ramke danych DIF, wykres i dane uzyte w analizie.
+#' @return Lista zawierajaca status, informacje o grupach, wyniki DIF,
+#' ramke danych DIF, wykres i dane uzyte w analizie.
 #'
 #' @examples
 #' # run_dif_pair(data_items, group_vec, theta_vec, "K", "M", "K vs M")
@@ -966,24 +2093,29 @@ run_dif_pair <- function(
     group_ref,
     group_focal,
     label,
-    model_name = NULL
+    model_name = NULL,
+    item_type = "auto",
+    item_max_scores = NULL,
+    min_group_n = 100,
+    min_items = 3,
+    min_category_n = 5,
+    alpha = 0.05
 ) {
 
-  mask <- group_vec %in% c(group_ref, group_focal) & !is.na(group_vec)
+  item_type <- match.arg(
+    item_type,
+    choices = c("auto", "binary", "polytomous", "mixed")
+  )
 
-  d_items <- data_items[mask, , drop = FALSE]
-  d_group <- group_vec[mask]
-  d_theta <- theta_vec[mask]
+  data_items <- as.data.frame(data_items)
 
-  good_items <- sapply(d_items, function(x) {
-    stats::var(x, na.rm = TRUE) > 0 && sum(!is.na(x)) >= 20
-  })
-
-  d_items <- d_items[, good_items, drop = FALSE]
-
-  if (ncol(d_items) < 3) {
+  if (nrow(data_items) != length(group_vec)) {
     return(list(
-      status = make_status(FALSE, "too_few_items", "Za malo wspolnych itemow do analizy DIF."),
+      status = make_status(
+        FALSE,
+        "group_length_mismatch",
+        "Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych."
+      ),
       label = label,
       group_ref = group_ref,
       group_focal = group_focal,
@@ -991,67 +2123,408 @@ run_dif_pair <- function(
     ))
   }
 
-  complete <- rowSums(!is.na(d_items)) > 0
+  mask <- group_vec %in% c(group_ref, group_focal) & !is.na(group_vec)
+
+  d_items <- data_items[mask, , drop = FALSE]
+  d_group <- as.character(group_vec[mask])
+  d_theta <- theta_vec[mask]
+
+  d_group <- factor(
+    d_group,
+    levels = c(as.character(group_ref), as.character(group_focal))
+  )
+
+  complete <- rowSums(!is.na(d_items)) > 0 & !is.na(d_group)
 
   d_items <- d_items[complete, , drop = FALSE]
   d_group <- d_group[complete]
   d_theta <- d_theta[complete]
 
-  group_numeric <- ifelse(d_group == group_ref, 0, 1)
+  n_ref <- sum(d_group == as.character(group_ref))
+  n_focal <- sum(d_group == as.character(group_focal))
+
+  if (n_ref < min_group_n || n_focal < min_group_n) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_group_observations",
+        paste0(
+          "Za malo obserwacji do analizy DIF: ",
+          "n_ref = ", n_ref, ", n_focal = ", n_focal,
+          ". Minimum na grupe: ", min_group_n, "."
+        )
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name
+    ))
+  }
+
+  d_items[] <- lapply(d_items, function(x) {
+    if (is.factor(x) || is.ordered(x)) {
+      as.numeric(as.character(x))
+    } else {
+      as.numeric(x)
+    }
+  })
+
+  good_items <- vapply(
+    names(d_items),
+    function(item) {
+      x <- d_items[[item]]
+
+      total_ok <- sum(!is.na(x)) >= 20
+      var_total <- stats::var(x, na.rm = TRUE)
+      var_ok <- is.finite(var_total) && var_total > 0
+
+      x_ref <- x[d_group == as.character(group_ref)]
+      x_focal <- x[d_group == as.character(group_focal)]
+
+      var_ref <- stats::var(x_ref, na.rm = TRUE)
+      var_focal <- stats::var(x_focal, na.rm = TRUE)
+
+      ref_ok <- is.finite(var_ref) && var_ref > 0
+      focal_ok <- is.finite(var_focal) && var_focal > 0
+
+      vals <- x[!is.na(x)]
+      cats <- table(vals)
+      cat_ok <- sum(cats >= min_category_n) >= 2
+
+      total_ok && var_ok && ref_ok && focal_ok && cat_ok
+    },
+    logical(1)
+  )
+
+  d_items <- d_items[, good_items, drop = FALSE]
+
+  if (ncol(d_items) < min_items) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "too_few_items",
+        "Za malo wspolnych itemow do analizy DIF po filtrowaniu."
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name
+    ))
+  }
+
+  if (is.null(item_max_scores)) {
+    item_max_scores <- sapply(d_items, max, na.rm = TRUE)
+  } else {
+    missing_scores <- setdiff(names(d_items), names(item_max_scores))
+
+    if (length(missing_scores) > 0) {
+      item_max_scores <- c(
+        item_max_scores,
+        sapply(d_items[, missing_scores, drop = FALSE], max, na.rm = TRUE)
+      )
+    }
+
+    item_max_scores <- item_max_scores[names(d_items)]
+  }
+
+  item_max_scores <- as.integer(item_max_scores)
+  names(item_max_scores) <- names(d_items)
+  item_max_scores[!is.finite(item_max_scores) | item_max_scores < 1] <- 1L
+
+  all_binary <- all(item_max_scores == 1L)
+  any_binary <- any(item_max_scores == 1L)
+
+  inferred_item_type <- if (all_binary) {
+    "binary"
+  } else if (!any_binary) {
+    "polytomous"
+  } else {
+    "mixed"
+  }
+
+  if (item_type == "auto" || item_type != inferred_item_type) {
+    item_type <- inferred_item_type
+  }
+
+  # ---------------------------------------------------------------
+  # Sciezka binarna: logistyczny DIF z sirt
+  # ---------------------------------------------------------------
+
+  if (item_type == "binary") {
+
+    group_numeric <- ifelse(d_group == as.character(group_ref), 0, 1)
+
+    dif_result <- tryCatch(
+      sirt::dif.logistic.regression(
+        dat = d_items,
+        score = d_theta,
+        group = group_numeric
+      ),
+      error = function(e) e
+    )
+
+    if (inherits(dif_result, "error")) {
+      return(list(
+        status = make_status(FALSE, "dif_error", conditionMessage(dif_result)),
+        label = label,
+        group_ref = group_ref,
+        group_focal = group_focal,
+        n_ref = n_ref,
+        n_focal = n_focal,
+        model_name = model_name,
+        item_type = item_type
+      ))
+    }
+
+    item_col <- if ("item" %in% names(dif_result)) {
+      dif_result$item
+    } else {
+      rownames(dif_result)
+    }
+
+    pdiff_col <- if ("pdiff.adj" %in% names(dif_result)) {
+      "pdiff.adj"
+    } else {
+      grep("pdiff", names(dif_result), value = TRUE)[1]
+    }
+
+    ets_col <- if ("DIF.ETS" %in% names(dif_result)) {
+      "DIF.ETS"
+    } else {
+      grep("ETS", names(dif_result), value = TRUE)[1]
+    }
+
+    dif_df <- data.frame(
+      Item = item_col,
+      pdiff_adj = if (!is.na(pdiff_col)) round(dif_result[[pdiff_col]], 4) else NA_real_,
+      ETS = if (!is.na(ets_col)) as.character(dif_result[[ets_col]]) else NA_character_,
+      stringsAsFactors = FALSE
+    )
+
+    dif_df$Interpretacja <- NA_character_
+    dif_df$Interpretacja[grepl("^A", dif_df$ETS)] <- "Pomijalne DIF"
+    dif_df$Interpretacja[grepl("^B", dif_df$ETS)] <- "Umiarkowane DIF"
+    dif_df$Interpretacja[grepl("^C", dif_df$ETS)] <- "Duze DIF"
+    dif_df$pdiff_for_plot <- dif_df$pdiff_adj
+
+    p_dif <- NULL
+
+    if (nrow(dif_df) > 0) {
+      p_dif <- ggplot2::ggplot(
+        dif_df,
+        ggplot2::aes(
+          x = stats::reorder(.data$Item, .data$pdiff_for_plot),
+          y = .data$pdiff_for_plot,
+          fill = .data$ETS
+        )
+      ) +
+        ggplot2::geom_col() +
+        ggplot2::coord_flip() +
+        ggplot2::labs(
+          title = paste("DIF:", label),
+          subtitle = paste("Metoda: logistyczna analiza DIF; model:", model_name),
+          x = "Item",
+          y = "Adjusted p-difference",
+          fill = "Klasyfikacja ETS"
+        ) +
+        ggplot2::theme_minimal()
+    }
+
+    return(list(
+      status = make_status(TRUE, "ok", NA_character_),
+      label = label,
+      method = "logistic_regression_sirt",
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      n_items = ncol(d_items),
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      dif_result = dif_result,
+      dif_df = dif_df,
+      plots = list(dif = p_dif),
+      data_items = d_items
+    ))
+  }
+
+  # ---------------------------------------------------------------
+  # Sciezka politomiczna / mieszana: modelowy DIF w mirt
+  # ---------------------------------------------------------------
+
+  itemtype_vector <- ifelse(
+    item_max_scores == 1L,
+    "2PL",
+    "gpcm"
+  )
+
+  itemtype_vector <- unname(itemtype_vector)
+
+  n_items <- ncol(d_items)
+  model_spec <- paste0("F = 1-", n_items)
+
+  model_base_fit <- tryCatch({
+
+    values_base <- mirt::multipleGroup(
+      d_items,
+      model = model_spec,
+      group = d_group,
+      itemtype = itemtype_vector,
+      invariance = c(colnames(d_items), "free_means", "free_var"),
+      pars = "values",
+      verbose = FALSE
+    )
+
+    values_base$value[values_base$name == "a1"] <- 1
+    values_base$est[values_base$name == "a1"] <- FALSE
+
+    model_base <- mirt::multipleGroup(
+      d_items,
+      model = model_spec,
+      group = d_group,
+      itemtype = itemtype_vector,
+      invariance = c(colnames(d_items), "free_means", "free_var"),
+      pars = values_base,
+      verbose = FALSE
+    )
+
+    list(
+      model = model_base,
+      values = values_base
+    )
+
+  }, error = function(e) e)
+
+  if (inherits(model_base_fit, "error")) {
+    return(list(
+      status = make_status(
+        FALSE,
+        "dif_mirt_model_error",
+        conditionMessage(model_base_fit)
+      ),
+      label = label,
+      group_ref = group_ref,
+      group_focal = group_focal,
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      data_items = d_items
+    ))
+  }
+
+  model_base <- model_base_fit$model
+  values_base <- model_base_fit$values
+
+  dif_parameters <- unique(values_base$name[grepl("^d", values_base$name)])
+
+  if (length(dif_parameters) == 0) {
+    dif_parameters <- "d"
+  }
 
   dif_result <- tryCatch(
-    sirt::dif.logistic.regression(
-      dat = d_items,
-      score = d_theta,
-      group = group_numeric
+    mirt::DIF(
+      model_base,
+      which.par = dif_parameters,
+      scheme = "drop",
+      p.adjust = "holm"
     ),
     error = function(e) e
   )
 
   if (inherits(dif_result, "error")) {
     return(list(
-      status = make_status(FALSE, "dif_error", conditionMessage(dif_result)),
+      status = make_status(
+        FALSE,
+        "dif_mirt_error",
+        conditionMessage(dif_result)
+      ),
       label = label,
       group_ref = group_ref,
       group_focal = group_focal,
-      model_name = model_name
+      n_ref = n_ref,
+      n_focal = n_focal,
+      model_name = model_name,
+      item_type = item_type,
+      item_max_scores = item_max_scores,
+      model_base = model_base,
+      data_items = d_items
     ))
   }
 
+  dif_raw <- as.data.frame(dif_result)
+
+  item_names <- rownames(dif_raw)
+  if (is.null(item_names)) {
+    item_names <- seq_len(nrow(dif_raw))
+  }
+
+  x2_col <- grep("^X2$|Chisq|Chi", names(dif_raw), value = TRUE)[1]
+  df_col <- grep("^df$|Df", names(dif_raw), value = TRUE)[1]
+  p_col <- grep("^p$|p$", names(dif_raw), value = TRUE)[1]
+  p_adj_col <- grep("adj|holm|p\\.adj|p_adj", names(dif_raw), ignore.case = TRUE, value = TRUE)[1]
+
+  p_raw <- if (!is.na(p_col)) {
+    suppressWarnings(as.numeric(dif_raw[[p_col]]))
+  } else {
+    rep(NA_real_, nrow(dif_raw))
+  }
+
+  p_holm <- if (!is.na(p_adj_col)) {
+    suppressWarnings(as.numeric(dif_raw[[p_adj_col]]))
+  } else {
+    stats::p.adjust(p_raw, method = "holm")
+  }
+
   dif_df <- data.frame(
-    Item = dif_result$item,
-    pdiff_adj = round(dif_result$pdiff.adj, 4),
-    ETS = dif_result$DIF.ETS,
+    Item = item_names,
+    X2 = if (!is.na(x2_col)) round(as.numeric(dif_raw[[x2_col]]), 3) else NA_real_,
+    df = if (!is.na(df_col)) as.numeric(dif_raw[[df_col]]) else NA_real_,
+    p = round(p_raw, 4),
+    p_holm = round(p_holm, 4),
     stringsAsFactors = FALSE
   )
 
-  dif_df$Interpretacja <- ""
-  dif_df$Interpretacja[dif_df$ETS == "A"] <- "Pomijalne DIF"
-  dif_df$Interpretacja[dif_df$ETS == "B"] <- "Umiarkowane DIF"
-  dif_df$Interpretacja[dif_df$ETS == "C"] <- "Duze DIF"
-  dif_df$pdiff_for_plot <- dif_result$pdiff.adj
+  dif_df$DIF_signal <- !is.na(dif_df$p_holm) & dif_df$p_holm < alpha
+
+  dif_df$Interpretacja <- ifelse(
+    dif_df$DIF_signal,
+    "Sygnal DIF",
+    "Brak sygnalu DIF"
+  )
+
+  dif_df$neg_log10_p_holm <- pmin(-log10(pmax(dif_df$p_holm, .Machine$double.xmin)), 20)
 
   p_dif <- NULL
 
   if (nrow(dif_df) > 0) {
     p_dif <- ggplot2::ggplot(
       dif_df,
-      ggplot2::aes(x = stats::reorder(.data$Item, .data$pdiff_for_plot), y = .data$pdiff_for_plot, fill = .data$ETS)
+      ggplot2::aes(
+        x = stats::reorder(.data$Item, .data$neg_log10_p_holm),
+        y = .data$neg_log10_p_holm,
+        fill = .data$DIF_signal
+      )
     ) +
       ggplot2::geom_col() +
       ggplot2::geom_hline(
-        yintercept = c(-1.5, -1, 1, 1.5),
+        yintercept = -log10(alpha),
         linetype = "dashed",
-        color = c("red", "orange", "orange", "red"),
         alpha = 0.5
       ) +
-      ggplot2::scale_fill_manual(values = c("A" = "green4", "B" = "orange", "C" = "red")) +
       ggplot2::coord_flip() +
       ggplot2::labs(
         title = paste("DIF:", label),
+        subtitle = paste("Metoda: modelowy DIF w mirt; model:", model_name),
         x = "Item",
-        y = "Adjusted p-difference",
-        fill = "Klasyfikacja ETS"
+        y = "-log10(p Holm)",
+        fill = paste0("p Holm < ", alpha)
       ) +
       ggplot2::theme_minimal()
   }
@@ -1059,12 +2532,18 @@ run_dif_pair <- function(
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
+    method = "mirt_model_based_partial_credit",
     group_ref = group_ref,
     group_focal = group_focal,
-    n_ref = sum(group_numeric == 0),
-    n_focal = sum(group_numeric == 1),
+    n_ref = n_ref,
+    n_focal = n_focal,
     n_items = ncol(d_items),
     model_name = model_name,
+    item_type = item_type,
+    item_max_scores = item_max_scores,
+    itemtype_vector = stats::setNames(itemtype_vector, colnames(d_items)),
+    dif_parameters = dif_parameters,
+    model_base = model_base,
     dif_result = dif_result,
     dif_df = dif_df,
     plots = list(dif = p_dif),
@@ -1072,9 +2551,14 @@ run_dif_pair <- function(
   )
 }
 
+
 #' @title Analiza DIF dla wszystkich par grup
 #'
-#' @description Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej, osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+#' @description
+#' Uruchamia analize DIF dla wszystkich par wartosci zmiennej grupujacej,
+#' osobno dla wersji testu lub dla calego zestawu danych, zaleznie od ustawien.
+#' Funkcja przekazuje do analizy informacje o typie itemow i maksymalnych
+#' wynikach itemow, jezeli sa dostepne w wynikach IRT.
 #'
 #' @param raw_data Ramka danych z danymi zrodlowymi, w tym zmienna grupujaca.
 #' @param items_data Ramka danych lub macierz z odpowiedziami itemowymi.
@@ -1084,6 +2568,10 @@ run_dif_pair <- function(
 #' @param has_groups Wartosc logiczna informujaca, czy dane maja zdefiniowana zmienna grupujaca.
 #' @param has_versions Wartosc logiczna informujaca, czy analize wykonac osobno dla wykrytych wersji testu.
 #' @param detected_version_col Nazwa kolumny w `raw_data` zawierajacej wykryta wersje testu.
+#' @param min_group_n Minimalna liczba osob w kazdej grupie.
+#' @param min_items Minimalna liczba itemow po filtrowaniu.
+#' @param min_category_n Minimalna liczebnosc kategorii uzywana w diagnostyce.
+#' @param alpha Poziom istotnosci uzywany do flagowania DIF.
 #'
 #' @return Lista zawierajaca status, nazwe zmiennej grupujacej, poziomy grup oraz wyniki analiz DIF dla par grup.
 #'
@@ -1099,7 +2587,11 @@ run_dif_analysis <- function(
     group_var = NULL,
     has_groups = FALSE,
     has_versions = FALSE,
-    detected_version_col = "detected_version"
+    detected_version_col = "detected_version",
+    min_group_n = 100,
+    min_items = 3,
+    min_category_n = 5,
+    alpha = 0.05
 ) {
 
   if (is.null(dif_group_var) && has_groups) {
@@ -1108,7 +2600,11 @@ run_dif_analysis <- function(
 
   if (is.null(dif_group_var) || !dif_group_var %in% names(raw_data)) {
     return(list(
-      status = make_status(FALSE, "missing_group_var", "Analiza DIF pominieta - nie podano zmiennej grupujacej."),
+      status = make_status(
+        FALSE,
+        "missing_group_var",
+        "Analiza DIF pominieta - nie podano zmiennej grupujacej."
+      ),
       results = list()
     ))
   }
@@ -1118,87 +2614,105 @@ run_dif_analysis <- function(
 
   if (length(unique_groups) < 2) {
     return(list(
-      status = make_status(FALSE, "too_few_groups", "Zmienna grupujaca ma mniej niz 2 unikalne wartosci."),
+      status = make_status(
+        FALSE,
+        "too_few_groups",
+        "Zmienna grupujaca ma mniej niz 2 unikalne wartosci."
+      ),
       results = list()
     ))
   }
 
-  dif_results <- list()
+  extract_groups_for_model <- function(model_data) {
 
-  if (has_versions) {
+    row_idx <- suppressWarnings(as.integer(rownames(model_data)))
 
-    for (v in names(irt_results)) {
-
-      label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
-      v_irt <- irt_results[[v]]
-      if (is.null(v_irt) || isFALSE(v_irt$status$ok[1])) next
-
-      v_data <- v_irt$data_items
-      v_theta <- v_irt$theta_scores[, 1]
-
-      if (v != "all") {
-        if (!detected_version_col %in% names(raw_data)) next
-        v_rows <- which(raw_data[[detected_version_col]] == as.numeric(v))
-        v_kept <- v_rows %in% as.integer(rownames(v_data))
-        v_group <- dif_groups[v_rows][v_kept]
-      } else {
-        v_complete <- rowSums(!is.na(items_data[, colnames(v_data), drop = FALSE])) > 0
-        v_group <- dif_groups[v_complete]
-      }
-
-      v_unique <- sort(unique(v_group[!is.na(v_group)]))
-
-      if (length(v_unique) >= 2) {
-        for (i in 1:(length(v_unique) - 1)) {
-          for (j in (i + 1):length(v_unique)) {
-
-            pair_label <- paste(v_unique[i], "vs", v_unique[j], label_v)
-
-            result <- run_dif_pair(
-              v_data,
-              v_group,
-              v_theta,
-              v_unique[i],
-              v_unique[j],
-              pair_label,
-              model_name = v_irt$preferred_name
-            )
-
-            dif_results[[pair_label]] <- result
-          }
-        }
-      }
+    if (
+      length(row_idx) == nrow(model_data) &&
+        all(!is.na(row_idx)) &&
+        all(row_idx >= 1) &&
+        all(row_idx <= nrow(raw_data))
+    ) {
+      return(dif_groups[row_idx])
     }
 
+    common_items <- intersect(colnames(model_data), colnames(items_data))
+
+    if (length(common_items) == 0) {
+      return(rep(NA, nrow(model_data)))
+    }
+
+    complete_rows <- rowSums(!is.na(items_data[, common_items, drop = FALSE])) > 0
+
+    dif_groups[complete_rows]
+  }
+
+  dif_results <- list()
+
+  selected_irt_names <- if (has_versions) {
+    names(irt_results)
   } else {
+    "all"
+  }
 
-    irt_all <- irt_results[["all"]]
+  for (v in selected_irt_names) {
 
-    if (!is.null(irt_all) && isTRUE(irt_all$status$ok[1])) {
+    v_irt <- irt_results[[v]]
 
-      theta_all <- irt_all$theta_scores[, 1]
-      data_all <- irt_all$data_items
+    if (is.null(v_irt) || isFALSE(v_irt$status$ok[1])) {
+      next
+    }
 
-      complete_rows <- rowSums(!is.na(items_data[, colnames(data_all), drop = FALSE])) > 0
-      dif_group_filtered <- dif_groups[complete_rows]
+    v_data <- v_irt$data_items
+    v_theta <- v_irt$theta_scores[, 1]
+    v_group <- extract_groups_for_model(v_data)
 
-      for (i in 1:(length(unique_groups) - 1)) {
-        for (j in (i + 1):length(unique_groups)) {
+    if (length(v_group) != nrow(v_data)) {
+      next
+    }
 
-          pair_label <- paste(unique_groups[i], "vs", unique_groups[j])
+    v_unique <- sort(unique(v_group[!is.na(v_group)]))
 
-          result <- run_dif_pair(
-            data_all,
-            dif_group_filtered,
-            theta_all,
-            unique_groups[i],
-            unique_groups[j],
-            pair_label,
-            model_name = irt_all$preferred_name
-          )
+    if (length(v_unique) < 2) {
+      next
+    }
 
-          dif_results[[pair_label]] <- result
-        }
+    label_v <- ifelse(v == "all", "", paste(" (Wersja", v, ")"))
+
+    pair_item_type <- if (!is.null(v_irt$item_type)) {
+      v_irt$item_type
+    } else {
+      "auto"
+    }
+
+    pair_item_max_scores <- if (!is.null(v_irt$item_max_scores)) {
+      v_irt$item_max_scores
+    } else {
+      NULL
+    }
+
+    for (i in seq_len(length(v_unique) - 1)) {
+      for (j in (i + 1):length(v_unique)) {
+
+        pair_label <- paste(v_unique[i], "vs", v_unique[j], label_v)
+
+        result <- run_dif_pair(
+          data_items = v_data,
+          group_vec = v_group,
+          theta_vec = v_theta,
+          group_ref = v_unique[i],
+          group_focal = v_unique[j],
+          label = pair_label,
+          model_name = v_irt$preferred_name,
+          item_type = pair_item_type,
+          item_max_scores = pair_item_max_scores,
+          min_group_n = min_group_n,
+          min_items = min_items,
+          min_category_n = min_category_n,
+          alpha = alpha
+        )
+
+        dif_results[[pair_label]] <- result
       }
     }
   }

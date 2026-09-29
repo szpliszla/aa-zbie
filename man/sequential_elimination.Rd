@@ -7,7 +7,8 @@
 sequential_elimination(
   data_items,
   label = "Caly test",
-  thresholds = c(0, 0.1, 0.15)
+  thresholds = c(0, 0.1, 0.15),
+  alpha_timeout = 120
 )
 }
 \arguments{
@@ -16,6 +17,10 @@ sequential_elimination(
 \item{label}{Etykieta analizy zapisywana w wyniku.}
 
 \item{thresholds}{Wektor liczbowy z kolejnymi progami korelacji \code{r_cor} uzywanymi do usuwania itemow.}
+
+\item{alpha_timeout}{Maksymalny czas (w sekundach) na pojedyncze wywolanie
+\code{psych::alpha()}. Po przekroczeniu limitu eliminacja zostaje przerwana
+z ostrzezeniem. Domyslnie \code{120}.}
 }
 \value{
 Lista zawierajaca status, tabele krokow eliminacji, nazwy pozostalych i usunietych itemow oraz finalne dane.

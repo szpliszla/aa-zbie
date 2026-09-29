@@ -8,9 +8,19 @@ render_report(
   output_path,
   data_path,
   item_prefix,
-  group_var,
-  id_var,
-  dif_group_var
+  group_var = NULL,
+  id_var = NULL,
+  dif_group_var = NULL,
+  exclude_items = NULL,
+  version_var = NULL,
+  min_pattern_prop = 0.05,
+  item_missing_max_prop = 0.9,
+  warn_unclassified_prop = 0.05,
+  max_unclassified_prop = 0.2,
+  alpha_threshold = 0.7,
+  discrimination_min = 0.3,
+  dif_method = "logistic",
+  unified_irt = TRUE
 )
 }
 \arguments{
@@ -27,21 +37,56 @@ prefiks wskazany w \code{item_prefix}.}
 kolumn z itemami testowymi, np. \code{"mat_"}. Do analizy zostaną wybrane
 kolumny, których nazwy zaczynają się od tego prefiksu.}
 
-\item{group_var}{Jednoelementowy wektor tekstowy z nazwą zmiennej dzielącej
+\item{group_var}{Opcjonalny wektor tekstowy z nazwą zmiennej dzielącej
 obserwacje na grupy, np. grupę eksperymentalną, płeć, szkołę albo inną
-kategorię używaną w analizach grupowych.}
+kategorię. Domyślnie \code{NULL} (brak zmiennej grupującej).}
 
-\item{id_var}{Jednoelementowy wektor tekstowy z nazwą zmiennej jednoznacznie
+\item{id_var}{Opcjonalny wektor tekstowy z nazwą zmiennej jednoznacznie
 identyfikującej obserwację w zbiorze danych, np. identyfikator ucznia lub
-respondenta.}
+respondenta. Domyślnie \code{NULL}.}
 
-\item{dif_group_var}{Jednoelementowy wektor tekstowy z nazwą zmiennej
+\item{dif_group_var}{Opcjonalny wektor tekstowy z nazwą zmiennej
 grupującej używanej w analizie DIF. Zmienna powinna mieć co najmniej dwie
-niepuste wartości/grupy, aby analiza DIF mogła zostać wykonana.}
+niepuste wartości/grupy. Domyślnie \code{NULL} (DIF nie jest wykonywany).}
+
+\item{exclude_items}{Opcjonalny wektor tekstowy z nazwami itemów do
+wykluczenia z analizy. Domyślnie \code{NULL}.}
+
+\item{version_var}{Opcjonalny wektor tekstowy z nazwą zmiennej w zbiorze
+danych, która wskazuje wersję testu (np. numer zeszytu). Gdy podana,
+raport rozdziela analizy per wersja. Gdy \code{NULL} (domyślnie), wersje
+są wykrywane heurystycznie na podstawie wzorców braków danych.}
+
+\item{min_pattern_prop}{Minimalna proporcja obserwacji o danym wzorcu braków,
+aby wzorzec został uznany za odrębną wersję testu. Domyślnie \code{0.05}.}
+
+\item{item_missing_max_prop}{Maksymalna dopuszczalna proporcja braków w
+itemie wewnątrz wersji testu. Domyślnie \code{0.90}.}
+
+\item{warn_unclassified_prop}{Proporcja obserwacji bez przypisanej wersji,
+powyzej ktorej raport dodaje ostrzezenie. Domyslnie \code{0.05}.}
+
+\item{max_unclassified_prop}{Maksymalna dopuszczalna proporcja obserwacji
+bez przypisanej wersji przy automatycznym wykrywaniu wersji testu.
+Po przekroczeniu tego progu automatyczny podzial na wersje zostaje
+wylaczony. Domyslnie \code{0.20}.}
+
+\item{alpha_threshold}{Próg alfa Cronbacha do oceny rzetelności.
+Domyślnie \code{0.70}.}
+
+\item{discrimination_min}{Minimalny próg mocy różnicującej itemu.
+Domyślnie \code{0.30}.}
+
+\item{dif_method}{Metoda analizy DIF. Domyślnie \code{"logistic"}.}
+
+\item{unified_irt}{Wartosc logiczna. Gdy \code{TRUE} (domyslnie) i wykryto
+wiele wersji testu, IRT, item fit i DIF sa liczone na jednym wspolnym
+modelu (pelna macierz z brakami, FIML). Gdy \code{FALSE}, analizy IRT
+biegna osobno per wersja.}
 }
 \value{
 Funkcja jest wywoływana głównie dla efektu ubocznego, czyli zapisania raportu
-pod ścieżką wskazaną w \code{output_path}. Zwraca wynik działania
+pod ścieżką wskazaną w \code{output_path}. Zwraca (niewidocznie) wynik działania
 \code{rmarkdown::render()}, czyli ścieżkę do wygenerowanego pliku raportu.
 }
 \description{
@@ -56,19 +101,26 @@ powinien mieć układ prostokątny: jeden wiersz odpowiada jednej obserwacji
 badanej osoby, ucznia lub respondenta, a kolumny odpowiadają zmiennym.
 Kolumny z itemami testowymi powinny mieć wspólny prefiks przekazany przez
 argument \code{item_prefix}, np. \code{mat_} dla itemów \code{mat_1}, \code{mat_2}, \code{mat_3}.
-Itemy powinny być zakodowane binarnie, gdzie \code{1} oznacza odpowiedź poprawną,
-a \code{0} odpowiedź niepoprawną. Braki danych powinny być zapisane jako \code{NA}
-albo w sposób możliwy do poprawnego odczytania jako braki danych przez R.
 
-Zbiór danych może dodatkowo zawierać kolumnę identyfikatora osoby, kolumnę
-grupującą obserwacje oraz kolumnę używaną do analizy DIF. Nazwy tych kolumn
-należy przekazać odpowiednio przez argumenty \code{id_var}, \code{group_var} oraz
-\code{dif_group_var}.
+Itemy mogą być zakodowane binarnie (0/1) lub politomicznie (0/1/2/...).
+Braki danych powinny być zapisane jako \code{NA} albo w sposób możliwy do
+poprawnego odczytania jako braki danych przez R.
 }
 \examples{
 \dontrun{
 data_path <- system.file("extdata", "math_data.csv", package = "aazbie")
-render_report("raport.html", data_path, "mat_", "grupa", "id_ucznia", "grupa")
+
+# Minimalny zestaw argumentow
+render_report("raport.html", data_path, "mat_")
+
+# Z grupami i DIF
+render_report("raport.html", data_path, "mat_",
+              group_var = "grupa", id_var = "id_ucznia",
+              dif_group_var = "grupa")
+
+# Z jawna zmienna wersji testu
+render_report("raport.html", data_path, "mat_",
+              version_var = "nr_zeszytu")
 }
 
 }

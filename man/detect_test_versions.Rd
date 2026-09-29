@@ -11,7 +11,9 @@ detect_test_versions(
   version_var = NULL,
   min_pattern_prop = 0.05,
   item_missing_max_prop = 0.9,
-  detected_version_col = ".detected_version"
+  detected_version_col = ".detected_version",
+  warn_unclassified_prop = 0.05,
+  max_unclassified_prop = 0.2
 )
 }
 \arguments{
@@ -28,6 +30,13 @@ detect_test_versions(
 \item{item_missing_max_prop}{Maksymalny udzial brakow itemu w danej wersji.}
 
 \item{detected_version_col}{Nazwa roboczej kolumny z wykryta wersja.}
+
+\item{warn_unclassified_prop}{Proporcja obserwacji bez przypisanej wersji,
+powyzej ktorej dodawane jest ostrzezenie. Domyslnie \code{0.05}.}
+
+\item{max_unclassified_prop}{Maksymalna proporcja obserwacji bez przypisanej
+wersji przy automatycznym wykrywaniu. Po przekroczeniu tego progu
+podzial na wersje zostaje wylaczony. Domyslnie \code{0.20}.}
 }
 \value{
 Lista z danymi, wersjami testu, itemami wersji i diagnostyka.

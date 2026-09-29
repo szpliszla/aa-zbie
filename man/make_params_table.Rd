@@ -9,13 +9,17 @@ make_params_table(model, model_name = NA_character_)
 \arguments{
 \item{model}{Dopasowany model IRT z pakietu \code{mirt}.}
 
-\item{model_name}{Nazwa modelu zapisywana w tabeli, np. \code{"1PL"}, \code{"2PL"} lub \code{"3PL"}.}
+\item{model_name}{Nazwa modelu zapisywana w tabeli, np. \code{"1PL"}, \code{"2PL"},
+\code{"3PL"}, \code{"Rasch_PCM"} lub \code{"2PL_GPCM"}.}
 }
 \value{
 Ramka danych z parametrami itemow IRT.
 }
 \description{
-Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je w ramce danych zawierajacej dyskryminacje, trudnosc, zgadywanie oraz interpretacje dyskryminacji.
+Pobiera parametry itemow z dopasowanego modelu IRT i porzadkuje je
+w ramce danych. Funkcja obsluguje modele binarne oraz modele
+partial-credit dla itemow punktowanych politomicznie. Dla modeli
+politomicznych zwraca wiele progow/trudnosci, np. b1, b2, b3.
 }
 \examples{
 # model <- mirt::mirt(data_items, 1, itemtype = "2PL")
