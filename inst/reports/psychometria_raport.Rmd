@@ -62,47 +62,10 @@ knitr::opts_chunk$set(
   error = TRUE
 )
 
-if (requireNamespace("aazbie", quietly = TRUE)) {
-  library(aazbie)
+if (!requireNamespace("aazbie", quietly = TRUE)) {
+  stop("Zainstaluj pakiet aazbie - patrz README", call. = FALSE)
 }
-
-# Fallback: source the engine files if the package is not installed
-if (!exists("read_psych_data", mode = "function")) {
-  engine_candidates_valid <- c(
-    file.path("..", "R", "silnik_psychometria_wczytanie_walidacja.R"),
-    file.path("R", "silnik_psychometria_wczytanie_walidacja.R")
-  )
-  engine_path_valid <- engine_candidates_valid[file.exists(engine_candidates_valid)][1]
-  if (is.na(engine_path_valid)) {
-    stop("Nie znaleziono pliku silnika: silnik_psychometria_wczytanie_walidacja.R")
-  }
-  source(engine_path_valid)
-}
-
-if (!exists("run_ctt_for_items", mode = "function")) {
-  engine_candidates_analizy <- c(
-    file.path("..", "R", "silnik_psychometria_analizy.R"),
-    file.path("R", "silnik_psychometria_analizy.R")
-  )
-  engine_path_analizy <- engine_candidates_analizy[file.exists(engine_candidates_analizy)][1]
-  if (is.na(engine_path_analizy)) {
-    stop("Nie znaleziono pliku silnika: silnik_psychometria_analizy.R")
-  }
-  source(engine_path_analizy)
-}
-
-if (!exists("wczytaj_tlumaczenia", mode = "function")) {
-  tlumaczenia_candidates <- c(
-    file.path("..", "..", "R", "tlumaczenia.R"),
-    file.path("..", "R", "tlumaczenia.R"),
-    file.path("R", "tlumaczenia.R")
-  )
-  tlumaczenia_path <- tlumaczenia_candidates[file.exists(tlumaczenia_candidates)][1]
-  if (is.na(tlumaczenia_path)) {
-    stop("Nie znaleziono pliku: tlumaczenia.R")
-  }
-  source(tlumaczenia_path)
-}
+library(aazbie)
 
 # The translation file sits next to the template (knitr working directory),
 # so it always matches the version of the template being rendered.
@@ -110,21 +73,6 @@ wczytaj_tlumaczenia(
   params$jezyk,
   sciezka = if (file.exists("tlumaczenia.csv")) "tlumaczenia.csv" else NULL
 )
-
-# Table formatting helper (column names translated via col.* tokens)
-fmt_table <- function(df, ...) {
-  df <- t_kolumny(df)
-  if (requireNamespace("kableExtra", quietly = TRUE)) {
-    kableExtra::kbl(df, row.names = FALSE, ...) |>
-      kableExtra::kable_styling(
-        bootstrap_options = c("striped", "hover", "condensed"),
-        full_width = FALSE,
-        font_size = 13
-      )
-  } else {
-    knitr::kable(df, row.names = FALSE, ...)
-  }
-}
 ```
 
 ```{r report-title, echo=FALSE}
@@ -444,7 +392,7 @@ if (has_versions) {
 `r t('ctt.method_intro')`
 
 | `r t('ctt.table.indicator')` | `r t('ctt.table.description')` | `r t('ctt.table.criterion')` |
-|--------------------------|------------------|----------------------------|
+|--------------------------|-------------------|---------------------------|
 | **`r t('ctt.difficulty_label')`** | `r t('ctt.difficulty_description')` | `r t('ctt.difficulty_criterion')` |
 | **`r t('ctt.discrimination_label')`** | `r t('ctt.discrimination_description')` | `r t('ctt.discrimination_criterion')` |
 | **r.drop** | `r t('ctt.rdrop_description')` | \> 0.20 |
@@ -603,7 +551,7 @@ if (has_versions) {
 ### `r t('irt.binary_models_title')`
 
 | `r t('irt.table.model')` | `r t('irt.table.parameters')` | `r t('irt.table.description')` |
-|----------------------|--------------------------------|-------------------|
+|----------------------|-------------------------------|-------------------|
 | **1PL (Rasch)** | `r t('irt.1pl_parameters')` | `r t('irt.1pl_description')` |
 | **2PL** | `r t('irt.2pl_parameters')` | `r t('irt.2pl_description')` |
 | **3PL** | `r t('irt.3pl_parameters')` | `r t('irt.3pl_description')` |
@@ -611,14 +559,14 @@ if (has_versions) {
 ### `r t('irt.polytomous_models_title')`
 
 | `r t('irt.table.model')` | `r t('irt.table.parameters')` | `r t('irt.table.description')` |
-|----------------------|--------------------------------|-------------------|
+|----------------------|-------------------------------|-------------------|
 | **Rasch-PCM** | `r t('irt.pcm_parameters')` | `r t('irt.pcm_description')` |
 | **2PL-GPCM** | `r t('irt.gpcm_parameters')` | `r t('irt.gpcm_description')` |
 
 ### `r t('irt.item_parameters_title')`
 
 | `r t('irt.table.parameter')` | `r t('irt.table.symbol')` | `r t('irt.table.description')` | `r t('irt.table.typical_range')` |
-|------------------|------------------|------------------|--------------------|
+|------------------|------------------|------------------|-------------------|
 | `r t('irt.discrimination')` | a | `r t('irt.discrimination_description')` | `r t('irt.discrimination_range')` |
 | `r t('irt.difficulty')` | b | `r t('irt.difficulty_description')` | `r t('irt.theta_range')` |
 | `r t('irt.guessing')` | g | `r t('irt.guessing_description')` | 0.00 - 0.35 |
@@ -836,7 +784,7 @@ if (irt_unified) {
 ### `r t('item_fit.fit_statistics_title')`
 
 | Statystyka | Opis | Kryterium |
-|----------------------------|------------------|--------------------------|
+|---------------------------|-------------------|--------------------------|
 | **PV-Q1**\* | Statystyka Chalmers & Ng (2017) - bootstrap | p \> 0.05 = dobre dopasowanie |
 | **Infit MNSQ** | Srednia kwadratow reszt wazona informacja | 0.70 - 1.30 (akceptowalne) |
 | **Outfit MNSQ** | Srednia kwadratow reszt niewazona | 0.70 - 1.30 (akceptowalne) |
@@ -962,8 +910,7 @@ for (name in names(irt_results)) {
 
 ### `r t('dif.method_title')`
 
-Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt.
-Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
+Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt. Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
 
 ### `r t('dif.ets_classification_title')`
 

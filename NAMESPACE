@@ -2,6 +2,7 @@
 
 export(detect_test_versions)
 export(export_results_to_excel)
+export(fmt_table)
 export(identify_item_columns)
 export(interpret_alpha)
 export(interpret_omega)

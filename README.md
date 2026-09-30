@@ -137,6 +137,7 @@ warto podać `version_var` lub użyć `unified_irt = TRUE` (domyślne).
 
 ```
 ├── R/
+│   ├── helpers.R
 │   ├── render_report.R
 │   ├── silnik_psychometria_analizy.R
 │   ├── silnik_psychometria_wczytanie_walidacja.R
@@ -153,6 +154,7 @@ warto podać `version_var` lub użyć `unified_irt = TRUE` (domyślne).
 │   └── testthat/
 │       ├── helper-sim.R
 │       ├── test_end2end.R
+│       ├── test_helpers.R
 │       ├── test_item_fit_wersje.R
 │       ├── test_poprawki.R
 │       └── test_tlumaczenia.R
