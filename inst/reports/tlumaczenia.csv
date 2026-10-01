@@ -1,7 +1,7 @@
 token;en;pl
 item_fit.section_title;Item fit;Dopasowanie itemow (Item Fit)
 item_fit.method_description_title;Method description;Opis metody
-item_fit.method_intro_1;Item fit checks whether individual items are well described by the selected IRT model. An item with poor fit behaves unpredictably.;Dopasowanie itemow sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
+item_fit.method_intro_1;**Item fit** checks whether individual items are well described by the selected IRT model. An item with poor fit behaves unpredictably.;**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
 item_fit.fit_statistics_title;Fit statistics;Statystyki dopasowania
 item_fit.table.statistic;Statistic;Statystyka
 item_fit.table.description;Description;Opis
@@ -15,25 +15,25 @@ item_fit.outfit_criterion;0.70-1.30 (acceptable);0.70-1.30 (akceptowalne)
 item_fit.sx2_description;Orlando-Thissen statistic;Statystyka Orlando-Thissen
 item_fit.sx2_criterion;p > 0.05 = good fit;p > 0.05 = dobre dopasowanie
 item_fit.interpretation_title;How to interpret the results;Sposob interpretacji
-item_fit.pvq1_interpretation;PV-Q1*: Preferred method (Chalmers & Ng, 2017). It uses parametric bootstrap. A p-value > 0.05 means that the model describes the item well.;PV-Q1*: Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p > 0.05 oznacza, ze model dobrze opisuje dany item.
-item_fit.infit_interpretation;Infit MNSQ: Sensitive to misfit around the average ability level, where most data are located. Values > 1.30 indicate misfit.;Infit MNSQ: Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci, tam gdzie jest najwiecej danych. Wartosci > 1.30 oznaczaja niedopasowanie.
-item_fit.outfit_interpretation;Outfit MNSQ: Sensitive to misfit at extreme theta values. More sensitive to outliers.;Outfit MNSQ: Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
-item_fit.sx2_interpretation;S-X2: Classic Orlando-Thissen method. Less accurate than PV-Q1* in small samples.;S-X2: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1* przy malych probach.
+item_fit.pvq1_interpretation;Preferred method (Chalmers & Ng, 2017). It uses parametric bootstrap. A p-value > 0.05 means that the model describes the item well.;Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p > 0.05 oznacza, ze model dobrze opisuje dany item.
+item_fit.infit_interpretation;Sensitive to misfit around the average ability level (where most data are located). Values > 1.30 indicate misfit.;Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci (tam gdzie jest najwiecej danych). Wartosci > 1.30 oznaczaja niedopasowanie.
+item_fit.outfit_interpretation;Sensitive to misfit at extreme theta values. More sensitive to outliers.;Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
+item_fit.sx2_interpretation;Classic Orlando-Thissen method. Less accurate than PV-Q1* in small samples.;Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1* przy malych probach.
 item_fit.results_title;Item fit results;Wyniki Item Fit
 item_fit.not_run;Item fit analysis was not performed:;Nie przeprowadzono analizy item fit:
 item_fit.result_subsection;Item fit;Item Fit
 item_fit.sx2_title;S-X2 statistic (Orlando-Thissen);Statystyka S-X2 (Orlando-Thissen)
-item_fit.sx2_summary;S-X2 summary: %d of %d items show misfit (p < 0.05).;Podsumowanie S-X2: %d z %d itemow wykazuje niedopasowanie (p < 0.05).
-item_fit.rmsea_summary;RMSEA: %d of %d items with RMSEA > 0.05;RMSEA: %d z %d itemow z RMSEA > 0.05
+item_fit.sx2_summary;**S-X2 summary:** %d of %d items show misfit (p < 0.05).;**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).
+item_fit.rmsea_summary;**RMSEA:** %d of %d items with RMSEA > 0.05;**RMSEA:** %d z %d itemow z RMSEA > 0.05
 common.warning;Warning:;Uwaga:
 item_fit.infit_outfit_title;Infit and Outfit statistics;Statystyki Infit i Outfit
-item_fit.infit_summary;Infit summary: %d of %d items outside the 0.70-1.30 range;Podsumowanie Infit: %d z %d itemow poza zakresem 0.70-1.30
-item_fit.outfit_summary;Outfit summary: %d of %d items outside the 0.70-1.30 range;Podsumowanie Outfit: %d z %d itemow poza zakresem 0.70-1.30
+item_fit.infit_summary;**Infit summary:** %d of %d items outside the 0.70-1.30 range;**Podsumowanie Infit:** %d z %d itemow poza zakresem 0.70-1.30
+item_fit.outfit_summary;**Outfit summary:** %d of %d items outside the 0.70-1.30 range;**Podsumowanie Outfit:** %d z %d itemow poza zakresem 0.70-1.30
 item_fit.fit_map_title;Overall item fit plot;Wykres zbiorczy item fit
 item_fit.general_interpretation_title;General item fit interpretation:;Interpretacja ogolna item fit:
-item_fit.rmsea_interpretation_rule;"RMSEA < 0.05: good fit; 0.05-0.10: acceptable; > 0.10: poor";"RMSEA < 0.05: dobre dopasowanie; 0.05-0.10: akceptowalne; > 0.10: slabe"
-item_fit.infit_outfit_interpretation_rule;Infit/Outfit 0.70-1.30: acceptable fit;Infit/Outfit 0.70-1.30: akceptowalne dopasowanie
-item_fit.sx2_interpretation_rule;S-X2 p > 0.05: the model describes the item well;S-X2 p > 0.05: model dobrze opisuje item
+item_fit.rmsea_interpretation_rule;"**RMSEA < 0.05:** good fit; **0.05-0.10:** acceptable; **> 0.10:** poor";"**RMSEA < 0.05:** dobre dopasowanie; **0.05-0.10:** akceptowalne; **> 0.10:** slabe"
+item_fit.infit_outfit_interpretation_rule;**Infit/Outfit 0.70-1.30:** acceptable fit;**Infit/Outfit 0.70-1.30:** akceptowalne dopasowanie
+item_fit.sx2_interpretation_rule;**S-X2 p > 0.05:** the model describes the item well;**S-X2 p > 0.05:** model dobrze opisuje item
 item_fit.msg.sx2_no_complete_rows;S-X2 was not computed: no person answered all items (e.g. several test versions). S-X2 requires complete response patterns.;Nie policzono S-X2: zadna osoba nie odpowiedziala na wszystkie itemy (np. kilka wersji testu). S-X2 wymaga pelnych wzorcow odpowiedzi.
 item_fit.msg.sx2_version_no_complete_rows;no person answered all items of this version;zadna osoba nie odpowiedziala na wszystkie itemy tej wersji
 item_fit.msg.sx2_pars_mismatch;parameters of the common model do not match the items of this version (e.g. a score category not observed in the version);parametry wspolnego modelu nie pasuja do itemow tej wersji (np. kategoria punktowa nieobecna w wersji)
@@ -42,11 +42,20 @@ item_fit.msg.versions_length;`versions` must have one value per row of the data 
 item_fit.sx2_by_version_note;S-X2 was computed separately within each test version, on the items of that version, using item parameters from the common calibration. The Holm correction covers all items and versions jointly.;S-X2 policzono osobno w kazdej wersji testu, na itemach tej wersji, z parametrami itemow ze wspolnej kalibracji. Korekta Holma obejmuje lacznie wszystkie itemy i wersje.
 item_fit.rasch_note;Rasch/1PL model: infit and outfit statistics are the main fit measures.;Model Rascha/1PL: statystyki infit i outfit sa glownymi miarami dopasowania.
 item_fit.2pl_note;2PL+ model: RMSEA and S-X2 are the recommended fit measures.;Model 2PL+: RMSEA i S-X2 sa rekomendowanymi miarami dopasowania.
+item_fit.msg.no_irt_model;No IRT model - item fit skipped.;Brak modelu IRT - pominieto item fit.
+item_fit.msg.sx2_columns_missing;S-X2, df or p columns were not recognised in the mirt::itemfit() output.;Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit().
+item_fit.msg.infit_columns_missing;Infit/outfit columns were not recognised in the mirt::itemfit() output.;Nie rozpoznano kolumn infit/outfit w wyniku mirt::itemfit().
+item_fit.msg.pvq1_skipped;PV-Q1* skipped.;PV-Q1* pominieto.
+item_fit.rating_no_data;No data;Brak danych
+item_fit.rating_misfit_signal;Misfit signal;Sygnal niedopasowania
+item_fit.rating_underfit;Underfit;Niedodopasowanie
+item_fit.rating_overfit;Overfit;Przeddopasowanie
+item_fit.plot.map_title;Item fit map;Mapa dopasowania itemow
 common.whole_test;Whole test;Caly test
 common.version;Version;Wersja
 dif.section_title;Differential Item Functioning (DIF);Roznicowe Funkcjonowanie Itemow (DIF)
 dif.method_description_title;Method description;Opis metody
-dif.method_intro;DIF (Differential Item Functioning) examines whether test items function in the same way across different groups (e.g., gender, experimental vs. control group).;DIF (Differential Item Functioning) sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
+dif.method_intro;**DIF (Differential Item Functioning)** examines whether test items function in the same way across different groups (e.g., gender, experimental vs. control group).;**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
 dif.definition_title;What is DIF?;Czym jest DIF?
 dif.definition_text;An item shows DIF when people from different groups with the same ability level (theta) have different probabilities of answering correctly. DIF means that the item is biased - it favors one group.;"Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest ""nieuczciwy"" (biased) - faworyzuje jedna grupe."
 dif.method_title;Method;Metoda
@@ -67,16 +76,28 @@ dif.reference_group;Reference group:;Grupa referencyjna:
 dif.focal_group;Focal group:;Grupa fokalna:
 dif.method_label;Method:;Metoda:
 dif.items_label;Items:;Itemy:
-dif.ets_summary;ETS summary: A = %d, B = %d, C = %d (out of %d items);Podsumowanie ETS: A = %d, B = %d, C = %d (z %d itemow)
-common.warning;WARNING:;UWAGA:
+dif.ets_summary;**ETS summary:** A = %d, B = %d, C = %d (out of %d items);**Podsumowanie ETS:** A = %d, B = %d, C = %d (z %d itemow)
 dif.large_dif_warning;The following items show large DIF (category C):;Nastepujace itemy wykazuja duze DIF (kategoria C):
 dif.easier_for_group;easier for group;latwiejszy dla grupy
-dif.significant_summary;Summary: %d of %d items with significant DIF (Holm p < 0.05);Podsumowanie: %d z %d itemow z istotnym DIF (p Holm < 0.05)
+dif.significant_summary;**Summary:** %d of %d items with significant DIF (Holm p < 0.05);**Podsumowanie:** %d z %d itemow z istotnym DIF (p Holm < 0.05)
 dif.summary_title;DIF summary;Podsumowanie DIF
 dif.general_interpretation_title;General interpretation:;Interpretacja ogolna:
-dif.fair_interpretation;If most items are classified as A or have Holm p > 0.05, the test is fair for the compared groups.;Jesli wiekszosc itemow ma klasyfikacje A lub p Holm > 0.05, test jest sprawiedliwy dla porownywanych grup.
-dif.monitor_interpretation;Items classified as B or showing moderate DIF require monitoring.;Itemy z klasyfikacja B lub umiarkowanym DIF wymagaja monitorowania.
-dif.review_interpretation;Items classified as C or showing highly significant DIF should be examined substantively.;Itemy z klasyfikacja C lub bardzo istotnym DIF powinny byc zbadane merytoryczne.
+dif.fair_interpretation;If most items are classified as **A** or have Holm p > 0.05, the test is fair for the compared groups.;Jesli wiekszosc itemow ma klasyfikacje **A** lub p Holm > 0.05, test jest sprawiedliwy dla porownywanych grup.
+dif.monitor_interpretation;Items classified as **B** or showing moderate DIF require monitoring.;Itemy z klasyfikacja **B** lub umiarkowanym DIF wymagaja monitorowania.
+dif.review_interpretation;Items classified as **C** or showing highly significant DIF should be examined substantively.;Itemy z klasyfikacja **C** lub bardzo istotnym DIF powinny byc zbadane merytoryczne.
+dif.rating_negligible;Negligible DIF;Pomijalne DIF
+dif.rating_moderate;Moderate DIF;Umiarkowane DIF
+dif.rating_large;Large DIF;Duze DIF
+dif.rating_signal;DIF signal;Sygnal DIF
+dif.rating_no_signal;No DIF signal;Brak sygnalu DIF
+dif.plot.subtitle_logistic;"Method: logistic DIF analysis; model:";"Metoda: logistyczna analiza DIF; model:"
+dif.plot.subtitle_mirt;"Method: model-based DIF in mirt; model:";"Metoda: modelowy DIF w mirt; model:"
+dif.plot.ets_fill;ETS classification;Klasyfikacja ETS
+dif.msg.missing_group_var;DIF analysis skipped - no grouping variable was specified.;Analiza DIF pominieta - nie podano zmiennej grupujacej.
+dif.msg.too_few_groups;The grouping variable has fewer than 2 unique values.;Zmienna grupujaca ma mniej niz 2 unikalne wartosci.
+dif.msg.group_length_mismatch;The length of the group vector does not match the number of rows of the item data.;Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych.
+dif.msg.too_few_group_observations;Too few observations for DIF analysis: n_ref = %s, n_focal = %s. Minimum per group: %s.;Za malo obserwacji do analizy DIF: n_ref = %s, n_focal = %s. Minimum na grupe: %s.
+dif.msg.too_few_items;Too few common items for DIF analysis after filtering.;Za malo wspolnych itemow do analizy DIF po filtrowaniu.
 summary.section_title;Summary and recommendations;Podsumowanie i rekomendacje
 summary.overall_title;Overall summary of analyses;Ogolne podsumowanie analiz
 summary.ctt_title;Classical Test Theory (CTT);Klasyczna Teoria Testow (CTT)
@@ -358,3 +379,6 @@ col.b_trudnosc;b_difficulty;b_trudnosc
 col.g_zgadywanie;g_guessing;g_zgadywanie
 col.u_gorna_asymptota;u_upper_asymptote;u_gorna_asymptota
 col.Ocena_a;Rating_a;Ocena_a
+col.Dopasowanie;Fit;Dopasowanie
+col.Infit_ocena;Infit_rating;Infit_ocena
+col.Outfit_ocena;Outfit_rating;Outfit_ocena

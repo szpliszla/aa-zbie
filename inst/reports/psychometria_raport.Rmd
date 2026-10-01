@@ -779,23 +779,23 @@ if (irt_unified) {
 
 ## `r t('item_fit.method_description_title')`
 
-**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
+`r t('item_fit.method_intro_1')`
 
 ### `r t('item_fit.fit_statistics_title')`
 
-| Statystyka | Opis | Kryterium |
+| `r t('item_fit.table.statistic')` | `r t('item_fit.table.description')` | `r t('item_fit.table.criterion')` |
 |---------------------------|-------------------|--------------------------|
-| **PV-Q1**\* | Statystyka Chalmers & Ng (2017) - bootstrap | p \> 0.05 = dobre dopasowanie |
-| **Infit MNSQ** | Srednia kwadratow reszt wazona informacja | 0.70 - 1.30 (akceptowalne) |
-| **Outfit MNSQ** | Srednia kwadratow reszt niewazona | 0.70 - 1.30 (akceptowalne) |
-| **S-X2** | Statystyka Orlando-Thissen | p \> 0.05 = dobre dopasowanie |
+| **PV-Q1**\* | `r t('item_fit.pvq1_description')` | `r t('item_fit.pvq1_criterion')` |
+| **Infit MNSQ** | `r t('item_fit.infit_description')` | `r t('item_fit.infit_criterion')` |
+| **Outfit MNSQ** | `r t('item_fit.outfit_description')` | `r t('item_fit.outfit_criterion')` |
+| **S-X2** | `r t('item_fit.sx2_description')` | `r t('item_fit.sx2_criterion')` |
 
 ### `r t('item_fit.interpretation_title')`
 
-- **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model dobrze opisuje dany item.
-- **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30 oznaczaja niedopasowanie.
-- **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
-- **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1\* przy malych probach.
+- **PV-Q1\***: `r t('item_fit.pvq1_interpretation')`
+- **Infit MNSQ**: `r t('item_fit.infit_interpretation')`
+- **Outfit MNSQ**: `r t('item_fit.outfit_interpretation')`
+- **S-X2**: `r t('item_fit.sx2_interpretation')`
 
 ```{r item-fit}
 # ============================================================================
@@ -807,7 +807,7 @@ cat("##", t("item_fit.results_title"), "\n\n")
 render_item_fit_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Nie przeprowadzono analizy item fit:**", result$status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("item_fit.not_run"), result$status$message))
     return(invisible(NULL))
   }
 
@@ -826,17 +826,17 @@ render_item_fit_result <- function(result) {
     cat("\n")
 
     n_misfit <- sum(result$sx2_df$p < 0.05, na.rm = TRUE)
-    cat(sprintf("**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).\n\n",
-                n_misfit, nrow(result$sx2_df)))
+    cat(sprintf(t("item_fit.sx2_summary"),
+                n_misfit, nrow(result$sx2_df)), "\n\n")
 
     if ("RMSEA" %in% names(result$sx2_df)) {
       n_rmsea_bad <- sum(result$sx2_df$RMSEA > 0.05, na.rm = TRUE)
-      cat(sprintf("**RMSEA:** %d z %d itemow z RMSEA > 0.05\n\n",
-                  n_rmsea_bad, sum(!is.na(result$sx2_df$RMSEA))))
+      cat(sprintf(t("item_fit.rmsea_summary"),
+                  n_rmsea_bad, sum(!is.na(result$sx2_df$RMSEA))), "\n\n")
     }
   } else if (!is.null(result$sx2_status$message)) {
     cat("#### S-X2\n\n")
-    cat("**Uwaga:**", result$sx2_status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("common.warning"), result$sx2_status$message))
   }
 
   # Infit / Outfit
@@ -848,13 +848,13 @@ render_item_fit_result <- function(result) {
     n_infit_bad <- sum(result$infit_df$Infit_MNSQ > 1.30 | result$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
     n_outfit_bad <- sum(result$infit_df$Outfit_MNSQ > 1.30 | result$infit_df$Outfit_MNSQ < 0.70, na.rm = TRUE)
 
-    cat(sprintf("**Podsumowanie Infit:** %d z %d itemow poza zakresem 0.70-1.30\n",
-                n_infit_bad, nrow(result$infit_df)))
-    cat(sprintf("**Podsumowanie Outfit:** %d z %d itemow poza zakresem 0.70-1.30\n\n",
-                n_outfit_bad, nrow(result$infit_df)))
+    cat(sprintf(t("item_fit.infit_summary"),
+                n_infit_bad, nrow(result$infit_df)), "\n")
+    cat(sprintf(t("item_fit.outfit_summary"),
+                n_outfit_bad, nrow(result$infit_df)), "\n\n")
   } else if (!is.null(result$infit_status) && !isTRUE(result$infit_status$ok)) {
     cat("#### Infit / Outfit\n\n")
-    cat("**Uwaga:**", result$infit_status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("common.warning"), result$infit_status$message))
   }
 
   # Summary plot
@@ -864,16 +864,16 @@ render_item_fit_result <- function(result) {
     cat("\n\n")
   }
 
-  cat("**Interpretacja ogolna item fit:**\n\n")
-  cat("- **RMSEA < 0.05:** dobre dopasowanie; **0.05-0.10:** akceptowalne; **> 0.10:** slabe\n")
-  cat("- **Infit/Outfit 0.70-1.30:** akceptowalne dopasowanie\n")
-  cat("- **S-X2 p > 0.05:** model dobrze opisuje item\n\n")
+  cat(sprintf("**%s**\n\n", t("item_fit.general_interpretation_title")))
+  cat("-", t("item_fit.rmsea_interpretation_rule"), "\n")
+  cat("-", t("item_fit.infit_outfit_interpretation_rule"), "\n")
+  cat("-", t("item_fit.sx2_interpretation_rule"), "\n\n")
 
   if (!is.null(result$model_name)) {
     if (grepl("1PL|Rasch", result$model_name)) {
-      cat("*Model Rascha/1PL: statystyki infit i outfit sa glownymi miarami dopasowania.*\n\n")
+      cat(sprintf("*%s*\n\n", t("item_fit.rasch_note")))
     } else {
-      cat("*Model 2PL+: RMSEA i S-X2 sa rekomendowanymi miarami dopasowania.*\n\n")
+      cat(sprintf("*%s*\n\n", t("item_fit.2pl_note")))
     }
   }
 
@@ -904,21 +904,21 @@ for (name in names(irt_results)) {
 
 ## `r t('dif.method_description_title')`
 
-**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
+`r t('dif.method_intro')`
 
-**Czym jest DIF?** Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest "nieuczciwy" (biased) - faworyzuje jedna grupe.
+**`r t('dif.definition_title')`** `r t('dif.definition_text')`
 
 ### `r t('dif.method_title')`
 
-Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt. Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
+`r t('dif.binary_method')` `r t('dif.polytomous_method')`
 
 ### `r t('dif.ets_classification_title')`
 
-| Kategoria | Kryterium                 | Interpretacja                 |
+| `r t('dif.table.category')` | `r t('dif.table.criterion')` | `r t('dif.table.interpretation')` |
 |-----------|---------------------------|-------------------------------|
-| **A**     | abs(delta) \< 1.0         | Pomijalne DIF - item OK       |
-| **B**     | 1.0 \<= abs(delta) \< 1.5 | Umiarkowane DIF - monitorowac |
-| **C**     | abs(delta) \>= 1.5        | Duze DIF - rozwazyc usuniecie |
+| **A**     | abs(delta) \< 1.0         | `r t('dif.ets_a_interpretation')` |
+| **B**     | 1.0 \<= abs(delta) \< 1.5 | `r t('dif.ets_b_interpretation')` |
+| **C**     | abs(delta) \>= 1.5        | `r t('dif.ets_c_interpretation')` |
 
 ```{r dif-analysis}
 # ============================================================================
@@ -939,11 +939,11 @@ dif_all <- run_dif_analysis(
 )
 
 if (!isTRUE(dif_all$status$ok)) {
-  cat("**Nie przeprowadzono analizy DIF:**", dif_all$status$message, "\n\n")
+  cat(sprintf("**%s** %s\n\n", t("dif.not_run"), dif_all$status$message))
 } else {
 
-  cat("**Zmienna grupujaca DIF:**", dif_all$dif_group_var, "\n")
-  cat("**Grupy:**", paste(dif_all$groups, collapse = " vs "), "\n\n")
+  cat(sprintf("**%s** %s\n", t("dif.grouping_variable"), dif_all$dif_group_var))
+  cat(sprintf("**%s** %s\n\n", t("dif.groups"), paste(dif_all$groups, collapse = " vs ")))
 
   dif_results <- dif_all$results
 
@@ -952,15 +952,15 @@ if (!isTRUE(dif_all$status$ok)) {
 
     if (!isTRUE(r$status$ok)) {
       cat("####", r$label, "\n\n")
-      cat("**Nie przeprowadzono analizy DIF:**", r$status$message, "\n\n")
+      cat(sprintf("**%s** %s\n\n", t("dif.not_run"), r$status$message))
       next
     }
 
     cat("####", r$label, "\n\n")
-    cat("- Grupa referencyjna:", r$group_ref, "(n =", r$n_ref, ")\n")
-    cat("- Grupa fokalna:", r$group_focal, "(n =", r$n_focal, ")\n")
-    cat("- Metoda:", r$method, "\n")
-    cat("- Itemy:", r$n_items, "\n\n")
+    cat(sprintf("- %s %s (n = %s)\n", t("dif.reference_group"), r$group_ref, r$n_ref))
+    cat(sprintf("- %s %s (n = %s)\n", t("dif.focal_group"), r$group_focal, r$n_focal))
+    cat("-", t("dif.method_label"), r$method, "\n")
+    cat("-", t("dif.items_label"), r$n_items, "\n\n")
 
     # DIF results table
     if (!is.null(r$dif_df) && nrow(r$dif_df) > 0) {
@@ -973,25 +973,25 @@ if (!isTRUE(dif_all$status$ok)) {
         n_b <- sum(grepl("^B", r$dif_df$ETS), na.rm = TRUE)
         n_c <- sum(grepl("^C", r$dif_df$ETS), na.rm = TRUE)
 
-        cat(sprintf("**Podsumowanie ETS:** A = %d, B = %d, C = %d (z %d itemow)\n\n",
-                    n_a, n_b, n_c, nrow(r$dif_df)))
+        cat(sprintf(t("dif.ets_summary"),
+                    n_a, n_b, n_c, nrow(r$dif_df)), "\n\n")
 
         if (n_c > 0) {
-          cat("**UWAGA:** Nastepujace itemy wykazuja duze DIF (kategoria C):\n\n")
+          cat(sprintf("**%s** %s\n\n", t("common.warning_upper"), t("dif.large_dif_warning")))
           c_items <- r$dif_df$Item[grepl("^C", r$dif_df$ETS)]
           for (ci in c_items) {
             pdiff <- r$dif_df$pdiff_adj[r$dif_df$Item == ci]
             direction <- ifelse(pdiff > 0,
-                                paste("latwiejszy dla grupy", r$group_focal),
-                                paste("latwiejszy dla grupy", r$group_ref))
+                                paste(t("dif.easier_for_group"), r$group_focal),
+                                paste(t("dif.easier_for_group"), r$group_ref))
             cat(sprintf("- **%s** (pdiff = %.3f): %s\n", ci, pdiff, direction))
           }
           cat("\n")
         }
       } else if ("p_holm" %in% names(r$dif_df)) {
         n_sig <- sum(r$dif_df$p_holm < 0.05, na.rm = TRUE)
-        cat(sprintf("**Podsumowanie:** %d z %d itemow z istotnym DIF (p Holm < 0.05)\n\n",
-                    n_sig, nrow(r$dif_df)))
+        cat(sprintf(t("dif.significant_summary"),
+                    n_sig, nrow(r$dif_df)), "\n\n")
       }
     }
 
@@ -1005,11 +1005,10 @@ if (!isTRUE(dif_all$status$ok)) {
   # DIF summary
   if (length(dif_results) > 0) {
     cat("###", t("dif.summary_title"), "\n\n")
-    cat("**Interpretacja ogolna:**\n\n")
-    cat("- Jesli wiekszosc itemow ma klasyfikacje **A** lub p Holm > 0.05, test jest sprawiedliwy\n")
-    cat("  dla porownywanych grup.\n")
-    cat("- Itemy z klasyfikacja **B** lub umiarkowanym DIF wymagaja monitorowania.\n")
-    cat("- Itemy z klasyfikacja **C** lub bardzo istotnym DIF powinny byc zbadane merytoryczne.\n\n")
+    cat(sprintf("**%s**\n\n", t("dif.general_interpretation_title")))
+    cat("-", t("dif.fair_interpretation"), "\n")
+    cat("-", t("dif.monitor_interpretation"), "\n")
+    cat("-", t("dif.review_interpretation"), "\n\n")
   }
 }
 ```
@@ -1188,15 +1187,15 @@ export_result <- tryCatch(
     overwrite = TRUE
   ),
   error = function(e) {
-    cat("Blad zapisu Excel:", e$message, "\n")
-    cat("Wyniki dostepne w obiektach R: ctt_results, irt_results, fit_results\n")
+    cat(t("export.excel_error"), e$message, "\n")
+    cat(t("export.objects_available"), "\n")
     NULL
   }
 )
 
 if (!is.null(export_result) && isTRUE(export_result$status$ok)) {
-  cat(sprintf("Wyniki zapisane do: **%s**\n\n", export_result$output_file))
-  cat("Arkusze:\n\n")
+  cat(sprintf(t("export.saved_to"), export_result$output_file), "\n\n")
+  cat(t("export.sheets_title"), "\n\n")
   for (s in export_result$sheets) {
     cat(sprintf("- %s\n", s))
   }
@@ -1207,4 +1206,4 @@ cat("\n")
 
 ------------------------------------------------------------------------
 
-*Raport wygenerowany automatycznie za pomoca pakietu `aazbie` i szablonu `psychometria_raport.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
+*`r t('report.footer')`* *`r t('report.packages')`*

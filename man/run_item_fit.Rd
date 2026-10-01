@@ -6,7 +6,7 @@
 \usage{
 run_item_fit(
   irt_result,
-  label = "Caly test",
+  label = t("common.whole_test"),
   run_pvq1 = FALSE,
   pvq1_n_max = 500,
   pvq1_items_max = 30,

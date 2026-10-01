@@ -15,6 +15,8 @@ test_that('raport na przykładowych danych binarnych działa', {
   )
 
   expect_true(file.exists(outpath))
+  # render_report() defaults to English
+  expect_identical(polskie_frazy(outpath), character(0))
   unlink(outpath)
 })
 
@@ -35,5 +37,7 @@ test_that('raport na danych politomicznych działa', {
   )
 
   expect_true(file.exists(outpath))
+  # render_report() defaults to English
+  expect_identical(polskie_frazy(outpath), character(0))
   unlink(outpath)
 })

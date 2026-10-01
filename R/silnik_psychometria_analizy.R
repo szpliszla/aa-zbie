@@ -1883,7 +1883,7 @@ run_sx2_by_version <- function(model, data_items, row_versions,
 #' @export
 run_item_fit <- function(
     irt_result,
-    label = "Caly test",
+    label = t("common.whole_test"),
     run_pvq1 = FALSE,
     pvq1_n_max = 500,
     pvq1_items_max = 30,
@@ -1902,7 +1902,7 @@ run_item_fit <- function(
       status = make_status(
         FALSE,
         "no_irt_model",
-        "Brak modelu IRT - pominieto item fit."
+        t("item_fit.msg.no_irt_model")
       ),
       label = label
     ))
@@ -2004,7 +2004,7 @@ run_item_fit <- function(
         sx2_status <- make_status(
           FALSE,
           "sx2_columns_missing",
-          "Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit()."
+          t("item_fit.msg.sx2_columns_missing")
         )
       }
     }
@@ -2020,11 +2020,11 @@ run_item_fit <- function(
 
     sx2_df$Dopasowanie <- ifelse(
       is.na(sx2_df$p_holm),
-      "Brak danych",
+      t("item_fit.rating_no_data"),
       ifelse(
         sx2_df$p_holm >= alpha,
         "OK",
-        "Sygnal niedopasowania"
+        t("item_fit.rating_misfit_signal")
       )
     )
   }
@@ -2071,21 +2071,21 @@ run_item_fit <- function(
 
       infit_df$Infit_ocena <- ifelse(
         is.na(infit_df$Infit_MNSQ),
-        "Brak danych",
+        t("item_fit.rating_no_data"),
         ifelse(
           infit_df$Infit_MNSQ >= 0.70 & infit_df$Infit_MNSQ <= 1.30,
           "OK",
-          ifelse(infit_df$Infit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+          ifelse(infit_df$Infit_MNSQ > 1.30, t("item_fit.rating_underfit"), t("item_fit.rating_overfit"))
         )
       )
 
       infit_df$Outfit_ocena <- ifelse(
         is.na(infit_df$Outfit_MNSQ),
-        "Brak danych",
+        t("item_fit.rating_no_data"),
         ifelse(
           infit_df$Outfit_MNSQ >= 0.70 & infit_df$Outfit_MNSQ <= 1.30,
           "OK",
-          ifelse(infit_df$Outfit_MNSQ > 1.30, "Niedodopasowanie", "Przeddopasowanie")
+          ifelse(infit_df$Outfit_MNSQ > 1.30, t("item_fit.rating_underfit"), t("item_fit.rating_overfit"))
         )
       )
 
@@ -2094,7 +2094,7 @@ run_item_fit <- function(
       infit_status <- make_status(
         FALSE,
         "infit_columns_missing",
-        "Nie rozpoznano kolumn infit/outfit w wyniku mirt::itemfit()."
+        t("item_fit.msg.infit_columns_missing")
       )
     }
   }
@@ -2108,7 +2108,7 @@ run_item_fit <- function(
 
   pvq1_result <- NULL
   pvq1_df <- NULL
-  pvq1_status <- make_status(FALSE, "pvq1_skipped", "PV-Q1* pominieto.")
+  pvq1_status <- make_status(FALSE, "pvq1_skipped", t("item_fit.msg.pvq1_skipped"))
   
   if (run_pvq1 && n_obs <= pvq1_n_max && n_items_fit <= pvq1_items_max) {
 
@@ -2225,8 +2225,8 @@ run_item_fit <- function(
         alpha = 0.5
       ) +
       ggplot2::labs(
-        title = paste("Mapa dopasowania itemow -", label, "-", model_name),
-        subtitle = paste("Typ itemow:", item_type),
+        title = paste(t("item_fit.plot.map_title"), "-", label, "-", model_name),
+        subtitle = paste(t("common.item_type_label"), t(paste0("common.item_type.", item_type))),
         x = "Infit MNSQ",
         y = "Outfit MNSQ",
         shape = paste0("S-X2 Holm p < ", alpha)
@@ -2331,7 +2331,7 @@ run_dif_pair <- function(
       status = make_status(
         FALSE,
         "group_length_mismatch",
-        "Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych."
+        t("dif.msg.group_length_mismatch")
       ),
       label = label,
       group_ref = group_ref,
@@ -2365,10 +2365,9 @@ run_dif_pair <- function(
       status = make_status(
         FALSE,
         "too_few_group_observations",
-        paste0(
-          "Za malo obserwacji do analizy DIF: ",
-          "n_ref = ", n_ref, ", n_focal = ", n_focal,
-          ". Minimum na grupe: ", min_group_n, "."
+        sprintf(
+          t("dif.msg.too_few_group_observations"),
+          n_ref, n_focal, min_group_n
         )
       ),
       label = label,
@@ -2422,7 +2421,7 @@ run_dif_pair <- function(
       status = make_status(
         FALSE,
         "too_few_items",
-        "Za malo wspolnych itemow do analizy DIF po filtrowaniu."
+        t("dif.msg.too_few_items")
       ),
       label = label,
       group_ref = group_ref,
@@ -2523,9 +2522,9 @@ run_dif_pair <- function(
     )
 
     dif_df$Interpretacja <- NA_character_
-    dif_df$Interpretacja[grepl("^A", dif_df$ETS)] <- "Pomijalne DIF"
-    dif_df$Interpretacja[grepl("^B", dif_df$ETS)] <- "Umiarkowane DIF"
-    dif_df$Interpretacja[grepl("^C", dif_df$ETS)] <- "Duze DIF"
+    dif_df$Interpretacja[grepl("^A", dif_df$ETS)] <- t("dif.rating_negligible")
+    dif_df$Interpretacja[grepl("^B", dif_df$ETS)] <- t("dif.rating_moderate")
+    dif_df$Interpretacja[grepl("^C", dif_df$ETS)] <- t("dif.rating_large")
     dif_df$pdiff_for_plot <- dif_df$pdiff_adj
 
     p_dif <- NULL
@@ -2543,10 +2542,10 @@ run_dif_pair <- function(
         ggplot2::coord_flip() +
         ggplot2::labs(
           title = paste("DIF:", label),
-          subtitle = paste("Metoda: logistyczna analiza DIF; model:", model_name),
+          subtitle = paste(t("dif.plot.subtitle_logistic"), model_name),
           x = "Item",
           y = "Adjusted p-difference",
-          fill = "Klasyfikacja ETS"
+          fill = t("dif.plot.ets_fill")
         ) +
         ggplot2::theme_minimal()
     }
@@ -2712,8 +2711,8 @@ run_dif_pair <- function(
 
   dif_df$Interpretacja <- ifelse(
     dif_df$DIF_signal,
-    "Sygnal DIF",
-    "Brak sygnalu DIF"
+    t("dif.rating_signal"),
+    t("dif.rating_no_signal")
   )
 
   dif_df$neg_log10_p_holm <- pmin(-log10(pmax(dif_df$p_holm, .Machine$double.xmin)), 20)
@@ -2738,7 +2737,7 @@ run_dif_pair <- function(
       ggplot2::coord_flip() +
       ggplot2::labs(
         title = paste("DIF:", label),
-        subtitle = paste("Metoda: modelowy DIF w mirt; model:", model_name),
+        subtitle = paste(t("dif.plot.subtitle_mirt"), model_name),
         x = "Item",
         y = "-log10(p Holm)",
         fill = paste0("p Holm < ", alpha)
@@ -2820,7 +2819,7 @@ run_dif_analysis <- function(
       status = make_status(
         FALSE,
         "missing_group_var",
-        "Analiza DIF pominieta - nie podano zmiennej grupujacej."
+        t("dif.msg.missing_group_var")
       ),
       results = list()
     ))
@@ -2834,7 +2833,7 @@ run_dif_analysis <- function(
       status = make_status(
         FALSE,
         "too_few_groups",
-        "Zmienna grupujaca ma mniej niz 2 unikalne wartosci."
+        t("dif.msg.too_few_groups")
       ),
       results = list()
     ))
