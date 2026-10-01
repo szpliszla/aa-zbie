@@ -959,7 +959,10 @@ if (!isTRUE(dif_all$status$ok)) {
     cat("####", r$label, "\n\n")
     cat(sprintf("- %s %s (n = %s)\n", t("dif.reference_group"), r$group_ref, r$n_ref))
     cat(sprintf("- %s %s (n = %s)\n", t("dif.focal_group"), r$group_focal, r$n_focal))
-    cat("-", t("dif.method_label"), r$method, "\n")
+    cat("-", t("dif.method_label"), t(paste0("dif.method.", r$method)), "\n")
+    if (!is.null(r$dif_model)) {
+      cat("-", t("dif.model_label"), r$dif_model, "\n")
+    }
     cat("-", t("dif.items_label"), r$n_items, "\n\n")
 
     # DIF results table
@@ -993,6 +996,17 @@ if (!isTRUE(dif_all$status$ok)) {
         cat(sprintf(t("dif.significant_summary"),
                     n_sig, nrow(r$dif_df)), "\n\n")
       }
+    }
+
+    # Convergence warnings (mirt path)
+    if (isFALSE(r$base_converged)) {
+      cat(sprintf("**%s** %s\n\n", t("common.warning_upper"),
+                  t("dif.base_not_converged_warning")))
+    }
+    if (length(r$items_not_converged) > 0) {
+      cat(sprintf("**%s** %s %s\n\n", t("common.warning_upper"),
+                  t("dif.items_not_converged_warning"),
+                  paste(r$items_not_converged, collapse = ", ")))
     }
 
     # Plot

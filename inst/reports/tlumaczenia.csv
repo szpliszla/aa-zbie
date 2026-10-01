@@ -60,7 +60,7 @@ dif.definition_title;What is DIF?;Czym jest DIF?
 dif.definition_text;An item shows DIF when people from different groups with the same ability level (theta) have different probabilities of answering correctly. DIF means that the item is biased - it favors one group.;"Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest ""nieuczciwy"" (biased) - faworyzuje jedna grupe."
 dif.method_title;Method;Metoda
 dif.binary_method;For binary items, logistic regression (Swaminathan & Rogers, 1990) from the sirt package is used.;Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt.
-dif.polytomous_method;For polytomous and mixed items, model-based DIF in mirt (constrained baseline) is used.;Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
+dif.polytomous_method;For polytomous and mixed items, a multiple-group IRT model is fitted in mirt: 2PL for binary items and GPCM for polytomous items, regardless of the model selected in the IRT section. Slopes are constrained equal across groups, and the thresholds of each item are tested in turn with a likelihood-ratio test, with the remaining items as anchors. Only uniform DIF is therefore tested. P-values are Holm-adjusted.;Dla itemow politomicznych i mieszanych dopasowujemy w mirt wielogrupowy model IRT: 2PL dla itemow binarnych i GPCM dla itemow politomicznych, niezaleznie od modelu wybranego w sekcji IRT. Nachylenia sa rowne w grupach, a progi kazdego itemu testujemy po kolei testem ilorazu wiarygodnosci, traktujac pozostale itemy jako kotwice. Testujemy wiec tylko DIF jednorodny. Wartosci p korygujemy metoda Holma.
 dif.ets_classification_title;ETS classification (binary items);Klasyfikacja ETS (itemy binarne)
 dif.table.category;Category;Kategoria
 dif.table.criterion;Criterion;Kryterium
@@ -91,13 +91,18 @@ dif.rating_large;Large DIF;Duze DIF
 dif.rating_signal;DIF signal;Sygnal DIF
 dif.rating_no_signal;No DIF signal;Brak sygnalu DIF
 dif.plot.subtitle_logistic;"Method: logistic DIF analysis; model:";"Metoda: logistyczna analiza DIF; model:"
-dif.plot.subtitle_mirt;"Method: model-based DIF in mirt; model:";"Metoda: modelowy DIF w mirt; model:"
+dif.plot.subtitle_mirt;Method: likelihood-ratio test in mirt, DIF model:;Metoda: test ilorazu wiarygodnosci w mirt, model DIF:
 dif.plot.ets_fill;ETS classification;Klasyfikacja ETS
 dif.msg.missing_group_var;DIF analysis skipped - no grouping variable was specified.;Analiza DIF pominieta - nie podano zmiennej grupujacej.
 dif.msg.too_few_groups;The grouping variable has fewer than 2 unique values.;Zmienna grupujaca ma mniej niz 2 unikalne wartosci.
 dif.msg.group_length_mismatch;The length of the group vector does not match the number of rows of the item data.;Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych.
 dif.msg.too_few_group_observations;Too few observations for DIF analysis: n_ref = %s, n_focal = %s. Minimum per group: %s.;Za malo obserwacji do analizy DIF: n_ref = %s, n_focal = %s. Minimum na grupe: %s.
 dif.msg.too_few_items;Too few common items for DIF analysis after filtering.;Za malo wspolnych itemow do analizy DIF po filtrowaniu.
+dif.model_label;DIF model:;Model DIF:
+dif.method.logistic_regression_sirt;logistic regression (sirt);regresja logistyczna (sirt)
+dif.method.mirt_lrt;likelihood-ratio test in a multiple-group IRT model (mirt);test ilorazu wiarygodnosci w wielogrupowym modelu IRT (mirt)
+dif.base_not_converged_warning;The baseline multiple-group model did not converge. DIF results for this comparison are unreliable.;Wielogrupowy model bazowy nie osiagnal zbieznosci. Wyniki DIF dla tego porownania sa niepewne.
+dif.items_not_converged_warning;The model with freed thresholds did not converge for the following items, so their test results are unreliable:;Dla nastepujacych itemow model z uwolnionymi progami nie osiagnal zbieznosci, wiec ich wyniki testu sa niepewne:
 summary.section_title;Summary and recommendations;Podsumowanie i rekomendacje
 summary.overall_title;Overall summary of analyses;Ogolne podsumowanie analiz
 summary.ctt_title;Classical Test Theory (CTT);Klasyczna Teoria Testow (CTT)
@@ -382,3 +387,4 @@ col.Ocena_a;Rating_a;Ocena_a
 col.Dopasowanie;Fit;Dopasowanie
 col.Infit_ocena;Infit_rating;Infit_ocena
 col.Outfit_ocena;Outfit_rating;Outfit_ocena
+col.converged;Converged;Zbieznosc

@@ -33,7 +33,8 @@ run_dif_pair(
 
 \item{label}{Etykieta porownania grup.}
 
-\item{model_name}{Opcjonalna nazwa modelu, z ktorego pochodza oszacowania theta.}
+\item{model_name}{Opcjonalna nazwa modelu IRT, z ktorego pochodza oszacowania
+theta. W sciezce \code{mirt} nie wplywa na model DIF.}
 
 \item{item_type}{Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.}
 
@@ -49,13 +50,21 @@ run_dif_pair(
 }
 \value{
 Lista zawierajaca status, informacje o grupach, wyniki DIF,
-ramke danych DIF, wykres i dane uzyte w analizie.
+ramke danych DIF, wykres i dane uzyte w analizie. W sciezce \code{mirt}
+lista zawiera tez \code{dif_model} (\code{"2PL + GPCM"} albo \code{"GPCM"}),
+\code{base_converged} (zbieznosc modelu bazowego) i \code{items_not_converged}
+(itemy, dla ktorych model z uwolnionymi progami sie nie zbiegl),
+a \code{dif_df} ma kolumne \code{converged}.
 }
 \description{
 Wykonuje analize DIF dla dwoch wskazanych grup. Dla itemow binarnych
 zachowuje dotychczasowa logistyczna analize DIF z pakietu \code{sirt}.
-Dla itemow politomicznych i mieszanych wykonuje modelowa analize DIF
-w pakiecie \code{mirt}, zgodna z modelami partial-credit.
+Dla itemow politomicznych i mieszanych dopasowuje w pakiecie \code{mirt}
+wielogrupowy model 2PL (itemy binarne) + GPCM (itemy politomiczne),
+niezaleznie od modelu wybranego w analizie IRT. Nachylenia sa rowne
+w grupach, a progi kazdego itemu (\code{d} dla 2PL, \code{d1}, ..., \code{dk} dla GPCM)
+sa testowane po kolei testem ilorazu wiarygodnosci (schemat \code{"drop"}
+w \code{\link[mirt:DIF]{mirt::DIF()}}, korekta Holma). Testowany jest wiec tylko DIF jednorodny.
 }
 \examples{
 # run_dif_pair(data_items, group_vec, theta_vec, "K", "M", "K vs M")

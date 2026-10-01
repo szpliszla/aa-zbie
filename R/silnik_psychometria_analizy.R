@@ -2279,8 +2279,12 @@ run_item_fit <- function(
 #' @description
 #' Wykonuje analize DIF dla dwoch wskazanych grup. Dla itemow binarnych
 #' zachowuje dotychczasowa logistyczna analize DIF z pakietu `sirt`.
-#' Dla itemow politomicznych i mieszanych wykonuje modelowa analize DIF
-#' w pakiecie `mirt`, zgodna z modelami partial-credit.
+#' Dla itemow politomicznych i mieszanych dopasowuje w pakiecie `mirt`
+#' wielogrupowy model 2PL (itemy binarne) + GPCM (itemy politomiczne),
+#' niezaleznie od modelu wybranego w analizie IRT. Nachylenia sa rowne
+#' w grupach, a progi kazdego itemu (`d` dla 2PL, `d1`, ..., `dk` dla GPCM)
+#' sa testowane po kolei testem ilorazu wiarygodnosci (schemat `"drop"`
+#' w [mirt::DIF()], korekta Holma). Testowany jest wiec tylko DIF jednorodny.
 #'
 #' @param data_items Ramka danych lub macierz z odpowiedziami itemowymi.
 #' @param group_vec Wektor z przynaleznoscia osob do grup.
@@ -2288,7 +2292,8 @@ run_item_fit <- function(
 #' @param group_ref Wartosc identyfikujaca grupe referencyjna.
 #' @param group_focal Wartosc identyfikujaca grupe fokalna.
 #' @param label Etykieta porownania grup.
-#' @param model_name Opcjonalna nazwa modelu, z ktorego pochodza oszacowania theta.
+#' @param model_name Opcjonalna nazwa modelu IRT, z ktorego pochodza oszacowania
+#'   theta. W sciezce `mirt` nie wplywa na model DIF.
 #' @param item_type Typ itemow: \code{"auto"}, \code{"binary"}, \code{"polytomous"} lub \code{"mixed"}.
 #' @param item_max_scores Opcjonalny named vector z maksymalnym wynikiem per item.
 #' @param min_group_n Minimalna liczba osob w kazdej grupie.
@@ -2297,7 +2302,11 @@ run_item_fit <- function(
 #' @param alpha Poziom istotnosci uzywany do flagowania DIF.
 #'
 #' @return Lista zawierajaca status, informacje o grupach, wyniki DIF,
-#' ramke danych DIF, wykres i dane uzyte w analizie.
+#' ramke danych DIF, wykres i dane uzyte w analizie. W sciezce `mirt`
+#' lista zawiera tez `dif_model` (`"2PL + GPCM"` albo `"GPCM"`),
+#' `base_converged` (zbieznosc modelu bazowego) i `items_not_converged`
+#' (itemy, dla ktorych model z uwolnionymi progami sie nie zbiegl),
+#' a `dif_df` ma kolumne `converged`.
 #'
 #' @examples
 #' # run_dif_pair(data_items, group_vec, theta_vec, "K", "M", "K vs M")
@@ -2572,6 +2581,8 @@ run_dif_pair <- function(
   # ---------------------------------------------------------------
   # Polytomous / mixed path: model-based DIF in mirt
   # ---------------------------------------------------------------
+  # The DIF model does not depend on the model selected in the IRT section:
+  # free slopes keep slope differences from showing up as threshold DIF.
 
   itemtype_vector <- ifelse(
     item_max_scores == 1L,
@@ -2581,47 +2592,29 @@ run_dif_pair <- function(
 
   itemtype_vector <- unname(itemtype_vector)
 
+  dif_model <- if (item_type == "mixed") "2PL + GPCM" else "GPCM"
+
   n_items <- ncol(d_items)
   model_spec <- paste0("F = 1-", n_items)
 
-  model_base_fit <- tryCatch({
-
-    values_base <- mirt::multipleGroup(
+  model_base <- tryCatch(
+    mirt::multipleGroup(
       d_items,
       model = model_spec,
       group = d_group,
       itemtype = itemtype_vector,
       invariance = c(colnames(d_items), "free_means", "free_var"),
-      pars = "values",
       verbose = FALSE
-    )
+    ),
+    error = function(e) e
+  )
 
-    values_base$value[values_base$name == "a1"] <- 1
-    values_base$est[values_base$name == "a1"] <- FALSE
-
-    model_base <- mirt::multipleGroup(
-      d_items,
-      model = model_spec,
-      group = d_group,
-      itemtype = itemtype_vector,
-      invariance = c(colnames(d_items), "free_means", "free_var"),
-      pars = values_base,
-      verbose = FALSE
-    )
-
-    list(
-      model = model_base,
-      values = values_base
-    )
-
-  }, error = function(e) e)
-
-  if (inherits(model_base_fit, "error")) {
+  if (inherits(model_base, "error")) {
     return(list(
       status = make_status(
         FALSE,
         "dif_mirt_model_error",
-        conditionMessage(model_base_fit)
+        conditionMessage(model_base)
       ),
       label = label,
       group_ref = group_ref,
@@ -2629,16 +2622,24 @@ run_dif_pair <- function(
       n_ref = n_ref,
       n_focal = n_focal,
       model_name = model_name,
+      dif_model = dif_model,
       item_type = item_type,
       item_max_scores = item_max_scores,
       data_items = d_items
     ))
   }
 
-  model_base <- model_base_fit$model
-  values_base <- model_base_fit$values
+  base_converged <- tryCatch(
+    isTRUE(mirt::extract.mirt(model_base, "converged")),
+    error = function(e) FALSE
+  )
 
-  dif_parameters <- unique(values_base$name[grepl("^d", values_base$name)])
+  # Uniform DIF only: test the estimated thresholds (d for 2PL, d1..dk for
+  # GPCM); slopes (a1) stay constrained equal across groups.
+  values_base <- mirt::mod2values(model_base)
+  dif_parameters <- unique(
+    values_base$name[values_base$est & grepl("^d[0-9]*$", values_base$name)]
+  )
 
   if (length(dif_parameters) == 0) {
     dif_parameters <- "d"
@@ -2649,7 +2650,8 @@ run_dif_pair <- function(
       model_base,
       which.par = dif_parameters,
       scheme = "drop",
-      p.adjust = "holm"
+      p.adjust = "holm",
+      verbose = FALSE
     ),
     error = function(e) e
   )
@@ -2667,8 +2669,10 @@ run_dif_pair <- function(
       n_ref = n_ref,
       n_focal = n_focal,
       model_name = model_name,
+      dif_model = dif_model,
       item_type = item_type,
       item_max_scores = item_max_scores,
+      base_converged = base_converged,
       model_base = model_base,
       data_items = d_items
     ))
@@ -2698,14 +2702,23 @@ run_dif_pair <- function(
     stats::p.adjust(p_raw, method = "holm")
   }
 
+  converged_col <- if ("converged" %in% names(dif_raw)) {
+    as.logical(dif_raw$converged)
+  } else {
+    rep(NA, nrow(dif_raw))
+  }
+
   dif_df <- data.frame(
     Item = item_names,
     X2 = if (!is.na(x2_col)) round(as.numeric(dif_raw[[x2_col]]), 3) else NA_real_,
     df = if (!is.na(df_col)) as.numeric(dif_raw[[df_col]]) else NA_real_,
     p = round(p_raw, 4),
     p_holm = round(p_holm, 4),
+    converged = converged_col,
     stringsAsFactors = FALSE
   )
+
+  items_not_converged <- dif_df$Item[dif_df$converged %in% FALSE]
 
   dif_df$DIF_signal <- !is.na(dif_df$p_holm) & dif_df$p_holm < alpha
 
@@ -2737,7 +2750,7 @@ run_dif_pair <- function(
       ggplot2::coord_flip() +
       ggplot2::labs(
         title = paste("DIF:", label),
-        subtitle = paste(t("dif.plot.subtitle_mirt"), model_name),
+        subtitle = paste(t("dif.plot.subtitle_mirt"), dif_model),
         x = "Item",
         y = "-log10(p Holm)",
         fill = paste0("p Holm < ", alpha)
@@ -2748,13 +2761,14 @@ run_dif_pair <- function(
   list(
     status = make_status(TRUE, "ok", NA_character_),
     label = label,
-    method = "mirt_model_based_partial_credit",
+    method = "mirt_lrt",
     group_ref = group_ref,
     group_focal = group_focal,
     n_ref = n_ref,
     n_focal = n_focal,
     n_items = ncol(d_items),
     model_name = model_name,
+    dif_model = dif_model,
     item_type = item_type,
     item_max_scores = item_max_scores,
     itemtype_vector = stats::setNames(itemtype_vector, colnames(d_items)),
@@ -2762,6 +2776,8 @@ run_dif_pair <- function(
     model_base = model_base,
     dif_result = dif_result,
     dif_df = dif_df,
+    base_converged = base_converged,
+    items_not_converged = items_not_converged,
     plots = list(dif = p_dif),
     data_items = d_items
   )
