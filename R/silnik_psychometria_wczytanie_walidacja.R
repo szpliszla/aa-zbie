@@ -1,21 +1,21 @@
 # ============================================================================
-# FUNKCJE POMOCNICZE - RAPORT PSYCHOMETRYCZNY
+# HELPER FUNCTIONS - PSYCHOMETRIC REPORT
 # ============================================================================
 # ============================================================================
-# LADOWANIE PAKIETOW
+# PACKAGE LOADING
 # ============================================================================
 
-# Pakiety wymagane przez funkcje w tym pliku.
-# Blok nie jest wykonywany, ale zostawia jawne deklaracje zaleznosci dla renv.
-# W kodzie funkcji uzywamy wywolan z przestrzenia nazw, np. haven::read_dta(),
-# zeby nie ladowac calych pakietow do sciezki wyszukiwania przez library().
+# Packages required by the functions in this file.
+# This block is never executed; it declares dependencies explicitly for renv.
+# Function code uses namespace-qualified calls, e.g. haven::read_dta(),
+# so that whole packages are not attached to the search path via library().
 if (FALSE) {
   library(haven)
   library(readxl)
 }
 
 # ============================================================================
-# WCZYTYWANIE DANYCH
+# DATA LOADING
 # ============================================================================
 
 #' @title Wczytanie danych psychometrycznych do analizy
@@ -122,7 +122,7 @@ read_psych_data <- function(data_path) {
 }
 
 # ============================================================================
-# IDENTYFIKACJA ITEMOW
+# ITEM IDENTIFICATION
 # ============================================================================
 
 #' @title Identyfikacja kolumn itemow
@@ -205,7 +205,7 @@ identify_item_columns <- function(raw_data, item_prefix, exclude_items = NULL) {
 
 
 # ============================================================================
-# WALIDACJA DANYCH
+# DATA VALIDATION
 # ============================================================================
 
 #' @title Walidacja itemow testowych
@@ -306,17 +306,17 @@ validate_items_data <- function(raw_data, item_cols) {
 
     validation_warnings <- c(
       validation_warnings,
-      list(paste("Skonwertowano", length(non_numeric), "kolumn na typ numeryczny"))
+      list(sprintf(t("validation.msg.converted"), length(non_numeric)))
     )
   }
 
   # ------------------------------------------------------------------
-  # Klasyfikacja itemow: binarne vs politomiczne
+  # Item classification: binary vs polytomous
   # ------------------------------------------------------------------
-  # Itemy z wartosciami bedacymi kolejnymi liczbami calkowitymi (np.
-  # 0,1 lub 0,1,2,3) sa traktowane jako prawidlowe. Itemy zaczynajace
-  # sie od wartosci > 0 sa przeskalowywane (odjecie minimum). Itemy z
-  # niecalkowitymi, ujemnymi lub niespojnymi wartosciami sa wykluczane.
+  # Items whose values are consecutive integers (e.g. 0,1 or 0,1,2,3)
+  # are treated as valid. Items starting at a value > 0 are rescaled
+  # (minimum subtracted). Items with non-integer, negative or inconsistent
+  # values are excluded.
 
   item_diagnostics <- lapply(names(items_data), function(col) {
     vals <- sort(unique(items_data[[col]][!is.na(items_data[[col]])]))
@@ -399,6 +399,7 @@ validate_items_data <- function(raw_data, item_cols) {
       function(col) item_diagnostics[[col]]$issue,
       character(1)
     )
+    invalid_reasons <- t(paste0("validation.issue.", invalid_reasons))
 
     item_cols <- setdiff(item_cols, invalid_items)
     items_data <- items_data[, item_cols, drop = FALSE]
@@ -406,8 +407,8 @@ validate_items_data <- function(raw_data, item_cols) {
     validation_issues <- c(
       validation_issues,
       list(
-        paste0(
-          "Wykluczono itemy z nieprawidlowymi wartosciami: ",
+        paste(
+          t("validation.msg.invalid_excluded"),
           paste(
             sprintf("%s (%s: %s)", invalid_items, invalid_reasons,
               vapply(invalid_items, function(col) paste(sort(item_diagnostics[[col]]$vals), collapse = ","), character(1))),
@@ -425,7 +426,7 @@ validate_items_data <- function(raw_data, item_cols) {
     )
   }
 
-  # Przeskaluj itemy zaczynajace sie od wartosci > 0
+  # Rescale items starting at a value > 0
   recoded_items <- character(0)
 
   for (col in item_cols) {
@@ -439,14 +440,14 @@ validate_items_data <- function(raw_data, item_cols) {
   if (length(recoded_items) > 0) {
     validation_warnings <- c(
       validation_warnings,
-      list(paste0(
-        "Przeskalowano itemy (odjeto minimum, aby zakres zaczynal sie od 0): ",
+      list(paste(
+        t("validation.msg.recoded"),
         paste(recoded_items, collapse = ", ")
       ))
     )
   }
 
-  # Okresl typ itemow
+  # Determine item types
   valid_diag <- item_diagnostics[item_cols]
 
   item_max_scores <- vapply(
@@ -486,15 +487,15 @@ validate_items_data <- function(raw_data, item_cols) {
     validation_issues <- c(
       validation_issues,
       list(
-        paste0(
-          "Wykluczono itemy z zerowa wariancja: ",
+        paste(
+          t("validation.msg.zero_variance_excluded"),
           paste(zero_var_items, collapse = ", ")
         )
       )
     )
   }
 
-    # Aktualizacja item_max_scores i n_categories po odsiewie
+    # Update item_max_scores and n_categories after filtering
     item_max_scores <- item_max_scores[item_cols]
     n_categories <- n_categories[item_cols]
 
@@ -522,7 +523,7 @@ validate_items_data <- function(raw_data, item_cols) {
 }
 
 # ============================================================================
-# WYKRYWANIE WERSJI TESTU
+# TEST VERSION DETECTION
 # ============================================================================
 
 #' @title Wykrywanie wersji testu
@@ -752,11 +753,7 @@ detect_test_versions <- function(
     if (length(unclassified_rows) > 0) {
       detection_warnings <- c(
         detection_warnings,
-        paste0(
-          "Zmienna wersji testu zawiera braki danych dla ",
-          length(unclassified_rows),
-          " obserwacji."
-        )
+        sprintf(t("validation.msg.version_var_missing_values"), length(unclassified_rows))
       )
     }
 
@@ -765,11 +762,7 @@ detect_test_versions <- function(
     if (!is.null(version_var) && !version_var %in% names(raw_data)) {
       detection_warnings <- c(
         detection_warnings,
-        paste0(
-          "Nie znaleziono zmiennej wersji testu: ",
-          version_var,
-          ". Podjeto probe wykrycia wersji na podstawie brakow danych."
-        )
+        sprintf(t("validation.msg.version_var_not_found"), version_var)
       )
     }
 
@@ -805,25 +798,21 @@ detect_test_versions <- function(
 
           detection_warnings <- c(
             detection_warnings,
-            paste0(
-              "Nie przypisano wersji dla ",
-              length(unclassified_rows),
-              " obserwacji z rzadkimi wzorcami brakow danych."
-            )
+            sprintf(t("validation.msg.rare_patterns_unassigned"), length(unclassified_rows))
           )
         }
 
       } else {
         detection_warnings <- c(
           detection_warnings,
-          "Nie wykryto zadnego glownego wzorca brakow danych spelniajacego kryterium krytyczne."
+          t("validation.msg.no_major_pattern")
         )
       }
 
     } else {
       detection_warnings <- c(
         detection_warnings,
-        "Nie podano zmiennej wersji i nie wykryto brakow danych pozwalajacych rozpoznac wersje."
+        t("validation.msg.no_version_info")
       )
     }
   }
@@ -832,7 +821,7 @@ detect_test_versions <- function(
 
   detected_versions <- sort(unique(version_vector[!is.na(version_vector)]))
 
-  # kontrola bezpieczenstwa automatycznego wykrywania wersji
+  # safety check for automatic version detection
 
   n_total <- nrow(items_matrix)
   n_unclassified <- length(unclassified_rows)
@@ -852,12 +841,10 @@ detect_test_versions <- function(
   ) {
     detection_warnings <- c(
       detection_warnings,
-      paste0(
-        "Wykrywanie wersji testu pozostawilo ",
+      sprintf(
+        t("validation.msg.unclassified"),
         n_unclassified,
-        " obserwacji bez przypisanej wersji (",
-        round(100 * unclassified_prop, 1),
-        "%)."
+        round(100 * unclassified_prop, 1)
       )
     )
   }
@@ -869,13 +856,10 @@ detect_test_versions <- function(
   ) {
     detection_warnings <- c(
       detection_warnings,
-      paste0(
-        "Automatyczne wykrywanie wersji testu zostalo wylaczone, ",
-        "poniewaz nie przypisalo wersji dla ",
+      sprintf(
+        t("validation.msg.auto_detection_disabled"),
         n_unclassified,
-        " obserwacji (",
-        round(100 * unclassified_prop, 1),
-        "%). Analizy zostana wykonane bez podzialu na wersje."
+        round(100 * unclassified_prop, 1)
       )
     )
 
@@ -929,8 +913,8 @@ detect_test_versions <- function(
   if (length(empty_version_items) > 0) {
     detection_warnings <- c(
       detection_warnings,
-      paste0(
-        "Dla nastepujacych wersji nie przypisano zadnych itemow: ",
+      sprintf(
+        t("validation.msg.versions_without_items"),
         paste(empty_version_items, collapse = ", ")
       )
     )

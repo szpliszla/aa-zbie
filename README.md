@@ -97,6 +97,7 @@ Trzy pierwsze parametry są wymagane, pozostałe opcjonalne.
 | `alpha_threshold` | `0.70` | Próg rzetelności alfa Cronbacha |
 | `discrimination_min` | `0.30` | Minimalny próg mocy dyskryminacyjnej itemu |
 | `dif_method` | `"logistic"` | Metoda analizy DIF |
+| `jezyk` | `"en"` | Język raportu: `"en"` lub `"pl"` |
 
 ### Wspólna kalibracja IRT
 
@@ -107,6 +108,14 @@ parametry itemów są estymowane na całej próbie zamiast na małych
 podgrupach per zeszyt.
 
 CTT i sekwencyjna eliminacja nadal biegną osobno per wersja.
+
+### Język raportu
+
+Raport jest domyślnie generowany po angielsku (`jezyk = "en"`), wersję
+polską daje `jezyk = "pl"`. Teksty raportu są w pliku
+`inst/reports/tlumaczenia.csv` (separator `;`, kolumna `token` i po
+jednej kolumnie na każdy język). Nowy język można dodać, dopisując
+kolumnę z jego kodem.
 
 
 ## Orientacyjny czas renderowania
@@ -128,20 +137,27 @@ warto podać `version_var` lub użyć `unified_irt = TRUE` (domyślne).
 
 ```
 ├── R/
+│   ├── helpers.R
 │   ├── render_report.R
 │   ├── silnik_psychometria_analizy.R
-│   └── silnik_psychometria_wczytanie_walidacja.R
+│   ├── silnik_psychometria_wczytanie_walidacja.R
+│   └── tlumaczenia.R
 ├── inst/
 │   ├── extdata/
 │   │   ├── math_data.csv
 │   │   ├── mixed_data.csv
 │   │   └── mixed_data_params.csv
 │   └── reports/
-│       └── psychometria_raport.Rmd
+│       ├── psychometria_raport.Rmd
+│       └── tlumaczenia.csv
 ├── tests/
 │   └── testthat/
+│       ├── helper-sim.R
 │       ├── test_end2end.R
-│       └── test_poprawki.R
+│       ├── test_helpers.R
+│       ├── test_item_fit_wersje.R
+│       ├── test_poprawki.R
+│       └── test_tlumaczenia.R
 ├── DESCRIPTION
 ├── NAMESPACE
 └── README.md

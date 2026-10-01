@@ -6,11 +6,13 @@
 \usage{
 run_item_fit(
   irt_result,
-  label = "Caly test",
+  label = t("common.whole_test"),
   run_pvq1 = FALSE,
   pvq1_n_max = 500,
   pvq1_items_max = 30,
-  alpha = 0.05
+  alpha = 0.05,
+  versions = NULL,
+  version_items = NULL
 )
 }
 \arguments{
@@ -25,10 +27,23 @@ run_item_fit(
 \item{pvq1_items_max}{Maksymalna liczba itemow, dla ktorej obliczana jest PV-Q1*.}
 
 \item{alpha}{Poziom istotnosci uzywany do flagowania niedopasowania S-X2.}
+
+\item{versions}{Opcjonalny wektor wersji testu, po jednej wartosci na kazdy
+wiersz danych przekazanych do \code{run_irt_for_items()} (\code{NA} = osoba bez
+przypisanej wersji). Gdy wskazano co najmniej dwie wersje, S-X2 jest
+liczone osobno w kazdej wersji, na jej itemach, z parametrami ze wspolnej
+kalibracji. Korekta Holma obejmuje lacznie wszystkie itemy i wersje.}
+
+\item{version_items}{Opcjonalna nazwana lista itemow kazdej wersji (np.
+\code{version_items} z \code{detect_test_versions()}). Domyslnie itemy, na ktore
+odpowiedziala co najmniej jedna osoba z danej wersji.}
 }
 \value{
 Lista zawierajaca status, surowe wyniki dopasowania, ramki danych ze
-statystykami, status PV-Q1* oraz obiekt wykresu.
+statystykami, status PV-Q1* oraz obiekt wykresu. Przy S-X2 liczonym osobno
+w wersjach \code{sx2_df} i \code{sx2_na_info} maja kolumne \code{Wersja}, \code{sx2} jest lista
+wynikow \code{mirt::itemfit()} dla wersji, a \code{sx2_version_status} opisuje status
+kazdej wersji.
 }
 \description{
 Oblicza statystyki dopasowania itemow dla wybranego modelu IRT.

@@ -8,7 +8,7 @@ make_empirical_icc_plot(
   model,
   data_items,
   theta_vals,
-  label = "Caly test",
+  label = t("common.whole_test"),
   model_name = "IRT",
   item_max_scores = NULL
 )

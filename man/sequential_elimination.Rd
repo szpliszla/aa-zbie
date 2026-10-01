@@ -6,7 +6,7 @@
 \usage{
 sequential_elimination(
   data_items,
-  label = "Caly test",
+  label = t("common.whole_test"),
   thresholds = c(0, 0.1, 0.15),
   alpha_timeout = 120
 )
