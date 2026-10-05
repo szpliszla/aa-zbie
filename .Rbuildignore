@@ -6,8 +6,12 @@
 ^LICENSE.md$
 ^raport\.html$
 ^raport_files$
+^output$
+^data$
+
 
 ^inst/reports/.*\.html$
 ^inst/reports/.*\.xlsx$
 ^inst/reports/.*_files$
+
 
