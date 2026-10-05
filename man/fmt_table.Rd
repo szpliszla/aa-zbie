@@ -16,8 +16,9 @@ Obiekt klasy \code{kableExtra}.
 }
 \description{
 Tlumaczy nazwy kolumn (tokeny \verb{col.*}, zob. \code{\link[=t_kolumny]{t_kolumny()}})
-i formatuje ramke danych jako tabele kableExtra w stylu
-striped/hover/condensed.
+i wartosci logiczne (zob. \code{\link[=t_logiczne]{t_logiczne()}}) oraz formatuje ramke danych
+jako tabele kableExtra w stylu striped/hover/condensed. Do wyswietlenia
+tabeli w raporcie sluzy \code{\link[=show_table]{show_table()}}.
 }
 \examples{
 fmt_table(data.frame(Item = "i1", Trudnosc_p = 0.5))

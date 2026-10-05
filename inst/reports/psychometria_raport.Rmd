@@ -45,6 +45,11 @@ params:
 
   # --- IRT calibration ---
   unified_irt: true
+
+  # --- Excel export ---
+  # Path of the Excel file. NULL: <data file>_results_<timestamp>.xlsx in the
+  # knitr working directory (render_report() sets a path next to the report).
+  excel_path: NULL
 editor_options:
   markdown:
     wrap: 72
@@ -63,7 +68,7 @@ knitr::opts_chunk$set(
 )
 
 if (!requireNamespace("aazbie", quietly = TRUE)) {
-  stop("Zainstaluj pakiet aazbie - patrz README", call. = FALSE)
+  stop("Install the aazbie package - see README", call. = FALSE)
 }
 library(aazbie)
 
@@ -161,7 +166,7 @@ if (length(non_numeric) > 0) {
   conversion_diagnostics <- validation_result$conversion_diagnostics
 
   if (nrow(conversion_diagnostics) > 0) {
-    print(fmt_table(conversion_diagnostics))
+    show_table(conversion_diagnostics)
     cat("\n")
   } else {
     cat(paste("-", non_numeric, collapse = "\n"), "\n\n")
@@ -196,7 +201,7 @@ if (!is.null(item_type) && item_type %in% c("polytomous", "mixed")) {
       N_kategorii = n_categories[poly_items],
       row.names = NULL
     )
-    print(fmt_table(poly_info))
+    show_table(poly_info)
     cat("\n")
   }
 } else {
@@ -231,7 +236,7 @@ missing_summary <- missing_summary[order(-missing_summary$Procent_brakow), ]
 items_with_missing <- missing_summary[missing_summary$Procent_brakow > 0, ]
 if (nrow(items_with_missing) > 0) {
   cat(t("validation.items_with_missing"), "\n\n")
-  print(fmt_table(items_with_missing))
+  show_table(items_with_missing)
   cat("\n")
 } else {
   cat(t("validation.no_missing_ok"), "\n\n")
@@ -292,7 +297,7 @@ cat("-", t("validation.difficulty_rule_2"), "\n")
 cat("-", t("validation.difficulty_rule_3"), "\n")
 cat("-", t("validation.difficulty_rule_4"), "\n\n")
 
-print(fmt_table(desc_stats))
+show_table(desc_stats)
 cat("\n")
 ```
 
@@ -340,7 +345,7 @@ if (length(version_result$detection_warnings) > 0) {
 
 if (nrow(version_result$version_summary) > 0) {
   cat(sprintf("\n**%s**\n\n", t("validation.detected_versions")))
-  print(fmt_table(version_result$version_summary))
+  show_table(version_result$version_summary)
   cat("\n")
 
   # Warning about excluded persons
@@ -430,14 +435,14 @@ render_ctt_result <- function(result) {
   }
 
   cat("####", t("ctt.reliability_title"), "\n\n")
-  print(fmt_table(result$reliability))
+  show_table(result$reliability)
   cat("\n")
 
   cat("####", t("ctt.item_stats_title"), "\n\n")
-  print(fmt_table(result$item_stats))
+  show_table(result$item_stats)
   cat("\n")
 
-  print(fmt_table(result$ocena_counts))
+  show_table(result$ocena_counts)
   cat("\n")
 
   n_bad <- sum(result$item_stats$r_cor < 0, na.rm = TRUE)
@@ -518,7 +523,7 @@ render_elimination_result <- function(result) {
   if (nrow(result$steps) > 0) {
     display_steps <- result$steps[, c("Krok", "N_itemow", "Alpha", "Usunieto")]
     display_steps$Usunieto[is.na(display_steps$Usunieto)] <- "-"
-    print(fmt_table(display_steps))
+    show_table(display_steps)
     cat("\n")
   }
 }
@@ -600,14 +605,14 @@ render_irt_result <- function(result) {
 
   if (!is.null(result$comparison_df)) {
     display_comp <- result$comparison_df[, c("Model", "AIC", "BIC", "LogLik", "df", "selected")]
-    print(fmt_table(display_comp))
+    show_table(display_comp)
     cat("\n")
   }
 
   # --- LRT ---
   if (!is.null(result$lrt) && nrow(result$lrt) > 0) {
     cat("####", t("irt.lrt_title"), "\n\n")
-    print(fmt_table(result$lrt))
+    show_table(result$lrt)
     cat("\n")
   }
 
@@ -634,7 +639,7 @@ render_irt_result <- function(result) {
 
   for (idx in seq_along(params_list)) {
     cat("##### Model", model_names[idx], "\n\n")
-    print(fmt_table(params_list[[idx]]))
+    show_table(params_list[[idx]])
     cat("\n")
   }
 
@@ -822,7 +827,7 @@ render_item_fit_result <- function(result) {
     if (identical(result$sx2_status$code, "sx2_partial")) {
       cat(sprintf("**%s** %s\n\n", t("common.warning"), result$sx2_status$message))
     }
-    print(fmt_table(result$sx2_df))
+    show_table(result$sx2_df)
     cat("\n")
 
     n_misfit <- sum(result$sx2_df$p < 0.05, na.rm = TRUE)
@@ -842,7 +847,7 @@ render_item_fit_result <- function(result) {
   # Infit / Outfit
   if (isTRUE(result$infit_status$ok) && !is.null(result$infit_df)) {
     cat("####", t("item_fit.infit_outfit_title"), "\n\n")
-    print(fmt_table(result$infit_df))
+    show_table(result$infit_df)
     cat("\n")
 
     n_infit_bad <- sum(result$infit_df$Infit_MNSQ > 1.30 | result$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
@@ -967,7 +972,7 @@ if (!isTRUE(dif_all$status$ok)) {
 
     # DIF results table
     if (!is.null(r$dif_df) && nrow(r$dif_df) > 0) {
-      print(fmt_table(r$dif_df))
+      show_table(r$dif_df)
       cat("\n")
 
       # Summary: binary (ETS) vs polytomous (p_holm)
@@ -1170,15 +1175,6 @@ cat("\n\n")
 
 cat("##", t("export.section_title"), "\n\n")
 
-# Path next to the report (not in the package directory)
-output_xlsx <- sub("\\.[^.]+$", "_wyniki.xlsx",
-                   basename(params$data_path))
-
-# If the report path is known, save it next to the report
-if (exists("output_path_report") && !is.null(output_path_report)) {
-  output_xlsx <- file.path(dirname(output_path_report), output_xlsx)
-}
-
 dif_to_export <- if (exists("dif_all") && isTRUE(dif_all$status$ok)) {
   dif_all
 } else {
@@ -1197,7 +1193,7 @@ export_result <- tryCatch(
     group_var = params$group_var,
     has_versions = has_versions,
     detected_version_col = detected_version_col,
-    output_file = output_xlsx,
+    output_file = params$excel_path,
     overwrite = TRUE
   ),
   error = function(e) {

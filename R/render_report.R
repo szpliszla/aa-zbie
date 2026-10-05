@@ -66,7 +66,9 @@
 #'
 #' @return
 #' Funkcja jest wywoływana głównie dla efektu ubocznego, czyli zapisania raportu
-#' pod ścieżką wskazaną w `output_path`. Zwraca (niewidocznie) wynik działania
+#' pod ścieżką wskazaną w `output_path`. Plik Excel z wynikami jest zapisywany
+#' w tym samym katalogu co raport, pod nazwą
+#' `<plik_danych>_results_<RRRR-MM-DD_GGMMSS>.xlsx` (zob. [excel_file_name()]). Zwraca (niewidocznie) wynik działania
 #' `rmarkdown::render()`, czyli ścieżkę do wygenerowanego pliku raportu.
 #'
 #' @examples
@@ -119,6 +121,7 @@ render_report <- function(
   if (rmd_path == "") {
     stop("Nie znaleziono szablonu raportu w zainstalowanym pakiecie.", call. = FALSE)
   }
+  excel_path <- file.path(dirname(output_path), excel_file_name(data_path))
   rmarkdown::render(
     rmd_path,
     output_file = output_path,
@@ -138,7 +141,8 @@ render_report <- function(
       discrimination_min = discrimination_min,
       dif_method = dif_method,
       unified_irt = unified_irt,
-      jezyk = jezyk
+      jezyk = jezyk,
+      excel_path = excel_path
     )
   )
 }

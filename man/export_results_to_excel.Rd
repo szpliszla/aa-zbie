@@ -40,7 +40,7 @@ export_results_to_excel(
 
 \item{detected_version_col}{Nazwa kolumny w \code{raw_data} zawierajacej wykryta wersje testu.}
 
-\item{output_file}{Opcjonalna sciezka do pliku XLSX. Gdy \code{NULL}, nazwa jest tworzona na podstawie \code{data_path}.}
+\item{output_file}{Opcjonalna sciezka do pliku XLSX. Gdy \code{NULL}, plik \verb{<plik_danych>_results_<RRRR-MM-DD_GGMMSS>.xlsx} (zob. \code{\link[=excel_file_name]{excel_file_name()}}) jest zapisywany w katalogu roboczym.}
 
 \item{overwrite}{Wartosc logiczna. Gdy \code{FALSE} (domyslnie), funkcja zwraca blad jesli plik wynikowy juz istnieje. Ustaw \code{TRUE}, aby nadpisac istniejacy plik.}
 }
@@ -48,7 +48,7 @@ export_results_to_excel(
 Lista zawierajaca status eksportu, sciezke do pliku wynikowego oraz nazwy utworzonych arkuszy.
 }
 \description{
-Zbiera wyniki analiz CTT, IRT, item fit, DIF oraz wyniki osob i zapisuje je jako osobne arkusze w pliku XLSX. Funkcja zwraca metadane eksportu zamiast wypisywac komunikaty do raportu.
+Zbiera wyniki analiz CTT, IRT, item fit, DIF oraz wyniki osob i zapisuje je jako osobne arkusze w pliku XLSX. Nazwy kolumn i arkusza wynikow osob sa tlumaczone na jezyk raportu (\code{\link[=t_kolumny]{t_kolumny()}}, token \code{export.sheet_person_scores}), a kolumny logiczne zamieniane na tekst (\code{\link[=t_logiczne]{t_logiczne()}}). Funkcja zwraca metadane eksportu zamiast wypisywac komunikaty do raportu.
 }
 \examples{
 # export_results_to_excel(ctt_results, irt_results, raw_data = raw_data, data_path = "dane.csv")

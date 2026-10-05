@@ -388,3 +388,9 @@ col.Dopasowanie;Fit;Dopasowanie
 col.Infit_ocena;Infit_rating;Infit_ocena
 col.Outfit_ocena;Outfit_rating;Outfit_ocena
 col.converged;Converged;Zbieznosc
+col.wybrany_model;Selected_model;Wybrany_model
+col.grupa;Group;Grupa
+col.wersja;Version;Wersja
+common.yes;Yes;Tak
+common.no;No;Nie
+export.sheet_person_scores;Person_scores;Wyniki_osob

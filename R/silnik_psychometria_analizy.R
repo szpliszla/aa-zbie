@@ -2961,9 +2961,33 @@ run_dif_analysis <- function(
 # EXPORT TO EXCEL
 # ============================================================================
 
+#' @title Nazwa pliku Excel z wynikami
+#'
+#' @description Tworzy nazwe pliku `<plik_danych>_results_<RRRR-MM-DD_GGMMSS>.xlsx`.
+#' Znacznik czasu sprawia, ze kolejne rendery (np. wersje EN i PL raportu)
+#' nie nadpisuja wczesniejszych plikow.
+#'
+#' @param data_path Sciezka do pliku danych wejsciowych.
+#' @param time Czas uzyty w znaczniku (domyslnie biezacy).
+#'
+#' @return Nazwa pliku (bez katalogu).
+#'
+#' @examples
+#' excel_file_name("dane/math_data.csv", as.POSIXct("2026-10-05 10:28:19"))
+#'
+#' @export
+excel_file_name <- function(data_path, time = Sys.time()) {
+  paste0(
+    sub("\\.[^.]+$", "", basename(data_path)),
+    "_results_",
+    format(time, "%Y-%m-%d_%H%M%S"),
+    ".xlsx"
+  )
+}
+
 #' @title Eksport wynikow analiz psychometrycznych do Excela
 #'
-#' @description Zbiera wyniki analiz CTT, IRT, item fit, DIF oraz wyniki osob i zapisuje je jako osobne arkusze w pliku XLSX. Funkcja zwraca metadane eksportu zamiast wypisywac komunikaty do raportu.
+#' @description Zbiera wyniki analiz CTT, IRT, item fit, DIF oraz wyniki osob i zapisuje je jako osobne arkusze w pliku XLSX. Nazwy kolumn i arkusza wynikow osob sa tlumaczone na jezyk raportu ([t_kolumny()], token `export.sheet_person_scores`), a kolumny logiczne zamieniane na tekst ([t_logiczne()]). Funkcja zwraca metadane eksportu zamiast wypisywac komunikaty do raportu.
 #'
 #' @param ctt_results Lista wynikow CTT, zwykle zwroconych przez `run_ctt_for_items()`.
 #' @param irt_results Lista wynikow IRT, zwykle zwroconych przez `run_irt_for_items()`.
@@ -2975,7 +2999,7 @@ run_dif_analysis <- function(
 #' @param group_var Opcjonalna nazwa zmiennej grupujacej dopisywanej do wynikow osob.
 #' @param has_versions Wartosc logiczna informujaca, czy dopisywac wykryta wersje testu do wynikow osob.
 #' @param detected_version_col Nazwa kolumny w `raw_data` zawierajacej wykryta wersje testu.
-#' @param output_file Opcjonalna sciezka do pliku XLSX. Gdy `NULL`, nazwa jest tworzona na podstawie `data_path`.
+#' @param output_file Opcjonalna sciezka do pliku XLSX. Gdy `NULL`, plik `<plik_danych>_results_<RRRR-MM-DD_GGMMSS>.xlsx` (zob. [excel_file_name()]) jest zapisywany w katalogu roboczym.
 #' @param overwrite Wartosc logiczna. Gdy `FALSE` (domyslnie), funkcja zwraca blad jesli plik wynikowy juz istnieje. Ustaw `TRUE`, aby nadpisac istniejacy plik.
 #'
 #' @return Lista zawierajaca status eksportu, sciezke do pliku wynikowego oraz nazwy utworzonych arkuszy.
@@ -3075,7 +3099,7 @@ export_results_to_excel <- function(
   }
 
   if (length(person_scores_all) > 0) {
-    export_sheets[["Wyniki_osob"]] <- do.call(rbind, person_scores_all)
+    export_sheets[[safe_sheet_name(t("export.sheet_person_scores"))]] <- do.call(rbind, person_scores_all)
   }
 
   for (name in names(fit_results)) {
@@ -3115,8 +3139,11 @@ export_results_to_excel <- function(
   }
 
   if (is.null(output_file)) {
-    output_file <- sub("\\.[^.]+$", "_wyniki.xlsx", basename(data_path))
+    output_file <- excel_file_name(data_path)
   }
+
+  # Column names and logical values in the report language (as in the HTML tables)
+  export_sheets <- lapply(export_sheets, function(d) t_kolumny(t_logiczne(d)))
 
   if (!overwrite && file.exists(output_file)) {
     return(list(

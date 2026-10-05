@@ -116,3 +116,31 @@ t_kolumny <- function(df) {
   names(df) <- nazwy
   df
 }
+
+#' @title Tlumaczenie wartosci logicznych w ramce danych
+#'
+#' @description Zamienia kolumny logiczne na tekst z tokenow `common.yes`
+#' i `common.no` (np. Yes/No, Tak/Nie). Braki (`NA`) zostaja brakami.
+#' Funkcja sluzy wylacznie do wyswietlania i eksportu tabel - w kodzie
+#' pakietu kolumny pozostaja logiczne. Bez tej zamiany Excel wyswietla
+#' wartosci logiczne w jezyku swojej instalacji (np. PRAWDA/FALSZ),
+#' niezaleznie od jezyka raportu.
+#'
+#' @param df Ramka danych.
+#'
+#' @return Ramka danych, w ktorej kolumny logiczne sa tekstowe.
+#'
+#' @examples
+#' t_logiczne(data.frame(Item = c("i1", "i2"), DIF_signal = c(TRUE, FALSE)))
+#'
+#' @export
+t_logiczne <- function(df) {
+  if (!is.data.frame(df)) {
+    return(df)
+  }
+
+  for (kol in names(df)[vapply(df, is.logical, logical(1))]) {
+    df[[kol]] <- ifelse(df[[kol]], t("common.yes"), t("common.no"))
+  }
+  df
+}

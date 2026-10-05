@@ -90,7 +90,9 @@ biegna osobno per wersja.}
 }
 \value{
 Funkcja jest wywoływana głównie dla efektu ubocznego, czyli zapisania raportu
-pod ścieżką wskazaną w \code{output_path}. Zwraca (niewidocznie) wynik działania
+pod ścieżką wskazaną w \code{output_path}. Plik Excel z wynikami jest zapisywany
+w tym samym katalogu co raport, pod nazwą
+\verb{<plik_danych>_results_<RRRR-MM-DD_GGMMSS>.xlsx} (zob. \code{\link[=excel_file_name]{excel_file_name()}}). Zwraca (niewidocznie) wynik działania
 \code{rmarkdown::render()}, czyli ścieżkę do wygenerowanego pliku raportu.
 }
 \description{
