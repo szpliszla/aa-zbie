@@ -6,7 +6,7 @@
 \usage{
 run_irt_for_items(
   data_items,
-  label = "Caly test",
+  label = t("common.whole_test"),
   show_plots = TRUE,
   show_empirical_icc = TRUE,
   item_type = "auto",

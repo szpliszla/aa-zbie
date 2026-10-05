@@ -1,0 +1,396 @@
+token;en;pl
+item_fit.section_title;Item fit;Dopasowanie itemow (Item Fit)
+item_fit.method_description_title;Method description;Opis metody
+item_fit.method_intro_1;**Item fit** checks whether individual items are well described by the selected IRT model. An item with poor fit behaves unpredictably.;**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
+item_fit.fit_statistics_title;Fit statistics;Statystyki dopasowania
+item_fit.table.statistic;Statistic;Statystyka
+item_fit.table.description;Description;Opis
+item_fit.table.criterion;Criterion;Kryterium
+item_fit.pvq1_description;Chalmers & Ng (2017) statistic - bootstrap;Statystyka Chalmers & Ng (2017) - bootstrap
+item_fit.pvq1_criterion;p > 0.05 = good fit;p > 0.05 = dobre dopasowanie
+item_fit.infit_description;Information-weighted mean square residual;Srednia kwadratow reszt wazona informacja
+item_fit.infit_criterion;0.70-1.30 (acceptable);0.70-1.30 (akceptowalne)
+item_fit.outfit_description;Unweighted mean square residual;Srednia kwadratow reszt niewazona
+item_fit.outfit_criterion;0.70-1.30 (acceptable);0.70-1.30 (akceptowalne)
+item_fit.sx2_description;Orlando-Thissen statistic;Statystyka Orlando-Thissen
+item_fit.sx2_criterion;p > 0.05 = good fit;p > 0.05 = dobre dopasowanie
+item_fit.interpretation_title;How to interpret the results;Sposob interpretacji
+item_fit.pvq1_interpretation;Preferred method (Chalmers & Ng, 2017). It uses parametric bootstrap. A p-value > 0.05 means that the model describes the item well.;Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p > 0.05 oznacza, ze model dobrze opisuje dany item.
+item_fit.infit_interpretation;Sensitive to misfit around the average ability level (where most data are located). Values > 1.30 indicate misfit.;Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci (tam gdzie jest najwiecej danych). Wartosci > 1.30 oznaczaja niedopasowanie.
+item_fit.outfit_interpretation;Sensitive to misfit at extreme theta values. More sensitive to outliers.;Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
+item_fit.sx2_interpretation;Classic Orlando-Thissen method. Less accurate than PV-Q1* in small samples.;Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1* przy malych probach.
+item_fit.results_title;Item fit results;Wyniki Item Fit
+item_fit.not_run;Item fit analysis was not performed:;Nie przeprowadzono analizy item fit:
+item_fit.result_subsection;Item fit;Item Fit
+item_fit.sx2_title;S-X2 statistic (Orlando-Thissen);Statystyka S-X2 (Orlando-Thissen)
+item_fit.sx2_summary;**S-X2 summary:** %d of %d items show misfit (p < 0.05).;**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).
+item_fit.rmsea_summary;**RMSEA:** %d of %d items with RMSEA > 0.05;**RMSEA:** %d z %d itemow z RMSEA > 0.05
+common.warning;Warning:;Uwaga:
+item_fit.infit_outfit_title;Infit and Outfit statistics;Statystyki Infit i Outfit
+item_fit.infit_summary;**Infit summary:** %d of %d items outside the 0.70-1.30 range;**Podsumowanie Infit:** %d z %d itemow poza zakresem 0.70-1.30
+item_fit.outfit_summary;**Outfit summary:** %d of %d items outside the 0.70-1.30 range;**Podsumowanie Outfit:** %d z %d itemow poza zakresem 0.70-1.30
+item_fit.fit_map_title;Overall item fit plot;Wykres zbiorczy item fit
+item_fit.general_interpretation_title;General item fit interpretation:;Interpretacja ogolna item fit:
+item_fit.rmsea_interpretation_rule;"**RMSEA < 0.05:** good fit; **0.05-0.10:** acceptable; **> 0.10:** poor";"**RMSEA < 0.05:** dobre dopasowanie; **0.05-0.10:** akceptowalne; **> 0.10:** slabe"
+item_fit.infit_outfit_interpretation_rule;**Infit/Outfit 0.70-1.30:** acceptable fit;**Infit/Outfit 0.70-1.30:** akceptowalne dopasowanie
+item_fit.sx2_interpretation_rule;**S-X2 p > 0.05:** the model describes the item well;**S-X2 p > 0.05:** model dobrze opisuje item
+item_fit.msg.sx2_no_complete_rows;S-X2 was not computed: no person answered all items (e.g. several test versions). S-X2 requires complete response patterns.;Nie policzono S-X2: zadna osoba nie odpowiedziala na wszystkie itemy (np. kilka wersji testu). S-X2 wymaga pelnych wzorcow odpowiedzi.
+item_fit.msg.sx2_version_no_complete_rows;no person answered all items of this version;zadna osoba nie odpowiedziala na wszystkie itemy tej wersji
+item_fit.msg.sx2_pars_mismatch;parameters of the common model do not match the items of this version (e.g. a score category not observed in the version);parametry wspolnego modelu nie pasuja do itemow tej wersji (np. kategoria punktowa nieobecna w wersji)
+item_fit.msg.sx2_versions_failed;S-X2 could not be computed for versions: %s.;Nie udalo sie policzyc S-X2 dla wersji: %s.
+item_fit.msg.versions_length;`versions` must have one value per row of the data passed to run_irt_for_items().;`versions` musi miec po jednej wartosci na kazdy wiersz danych przekazanych do run_irt_for_items().
+item_fit.sx2_by_version_note;S-X2 was computed separately within each test version, on the items of that version, using item parameters from the common calibration. The Holm correction covers all items and versions jointly.;S-X2 policzono osobno w kazdej wersji testu, na itemach tej wersji, z parametrami itemow ze wspolnej kalibracji. Korekta Holma obejmuje lacznie wszystkie itemy i wersje.
+item_fit.rasch_note;Rasch/1PL model: infit and outfit statistics are the main fit measures.;Model Rascha/1PL: statystyki infit i outfit sa glownymi miarami dopasowania.
+item_fit.2pl_note;2PL+ model: RMSEA and S-X2 are the recommended fit measures.;Model 2PL+: RMSEA i S-X2 sa rekomendowanymi miarami dopasowania.
+item_fit.msg.no_irt_model;No IRT model - item fit skipped.;Brak modelu IRT - pominieto item fit.
+item_fit.msg.sx2_columns_missing;S-X2, df or p columns were not recognised in the mirt::itemfit() output.;Nie rozpoznano kolumn S-X2, df lub p w wyniku mirt::itemfit().
+item_fit.msg.infit_columns_missing;Infit/outfit columns were not recognised in the mirt::itemfit() output.;Nie rozpoznano kolumn infit/outfit w wyniku mirt::itemfit().
+item_fit.msg.pvq1_skipped;PV-Q1* skipped.;PV-Q1* pominieto.
+item_fit.rating_no_data;No data;Brak danych
+item_fit.rating_misfit_signal;Misfit signal;Sygnal niedopasowania
+item_fit.rating_underfit;Underfit;Niedodopasowanie
+item_fit.rating_overfit;Overfit;Przeddopasowanie
+item_fit.plot.map_title;Item fit map;Mapa dopasowania itemow
+common.whole_test;Whole test;Caly test
+common.version;Version;Wersja
+dif.section_title;Differential Item Functioning (DIF);Roznicowe Funkcjonowanie Itemow (DIF)
+dif.method_description_title;Method description;Opis metody
+dif.method_intro;**DIF (Differential Item Functioning)** examines whether test items function in the same way across different groups (e.g., gender, experimental vs. control group).;**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
+dif.definition_title;What is DIF?;Czym jest DIF?
+dif.definition_text;An item shows DIF when people from different groups with the same ability level (theta) have different probabilities of answering correctly. DIF means that the item is biased - it favors one group.;"Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest ""nieuczciwy"" (biased) - faworyzuje jedna grupe."
+dif.method_title;Method;Metoda
+dif.binary_method;For binary items, logistic regression (Swaminathan & Rogers, 1990) from the sirt package is used.;Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt.
+dif.polytomous_method;For polytomous and mixed items, a multiple-group IRT model is fitted in mirt: 2PL for binary items and GPCM for polytomous items, regardless of the model selected in the IRT section. Slopes are constrained equal across groups, and the thresholds of each item are tested in turn with a likelihood-ratio test, with the remaining items as anchors. Only uniform DIF is therefore tested. P-values are Holm-adjusted.;Dla itemow politomicznych i mieszanych dopasowujemy w mirt wielogrupowy model IRT: 2PL dla itemow binarnych i GPCM dla itemow politomicznych, niezaleznie od modelu wybranego w sekcji IRT. Nachylenia sa rowne w grupach, a progi kazdego itemu testujemy po kolei testem ilorazu wiarygodnosci, traktujac pozostale itemy jako kotwice. Testujemy wiec tylko DIF jednorodny. Wartosci p korygujemy metoda Holma.
+dif.ets_classification_title;ETS classification (binary items);Klasyfikacja ETS (itemy binarne)
+dif.table.category;Category;Kategoria
+dif.table.criterion;Criterion;Kryterium
+dif.table.interpretation;Interpretation;Interpretacja
+dif.ets_a_interpretation;Negligible DIF - item OK;Pomijalne DIF - item OK
+dif.ets_b_interpretation;Moderate DIF - monitor;Umiarkowane DIF - monitorowac
+dif.ets_c_interpretation;Large DIF - consider removal;Duze DIF - rozwazyc usuniecie
+dif.results_title;DIF results;Wyniki DIF
+dif.not_run;DIF analysis was not performed:;Nie przeprowadzono analizy DIF:
+dif.grouping_variable;DIF grouping variable:;Zmienna grupujaca DIF:
+dif.groups;Groups:;Grupy:
+dif.reference_group;Reference group:;Grupa referencyjna:
+dif.focal_group;Focal group:;Grupa fokalna:
+dif.method_label;Method:;Metoda:
+dif.items_label;Items:;Itemy:
+dif.ets_summary;**ETS summary:** A = %d, B = %d, C = %d (out of %d items);**Podsumowanie ETS:** A = %d, B = %d, C = %d (z %d itemow)
+dif.large_dif_warning;The following items show large DIF (category C):;Nastepujace itemy wykazuja duze DIF (kategoria C):
+dif.easier_for_group;easier for group;latwiejszy dla grupy
+dif.significant_summary;**Summary:** %d of %d items with significant DIF (Holm p < 0.05);**Podsumowanie:** %d z %d itemow z istotnym DIF (p Holm < 0.05)
+dif.summary_title;DIF summary;Podsumowanie DIF
+dif.general_interpretation_title;General interpretation:;Interpretacja ogolna:
+dif.fair_interpretation;If most items are classified as **A** or have Holm p > 0.05, the test is fair for the compared groups.;Jesli wiekszosc itemow ma klasyfikacje **A** lub p Holm > 0.05, test jest sprawiedliwy dla porownywanych grup.
+dif.monitor_interpretation;Items classified as **B** or showing moderate DIF require monitoring.;Itemy z klasyfikacja **B** lub umiarkowanym DIF wymagaja monitorowania.
+dif.review_interpretation;Items classified as **C** or showing highly significant DIF should be examined substantively.;Itemy z klasyfikacja **C** lub bardzo istotnym DIF powinny byc zbadane merytoryczne.
+dif.rating_negligible;Negligible DIF;Pomijalne DIF
+dif.rating_moderate;Moderate DIF;Umiarkowane DIF
+dif.rating_large;Large DIF;Duze DIF
+dif.rating_signal;DIF signal;Sygnal DIF
+dif.rating_no_signal;No DIF signal;Brak sygnalu DIF
+dif.plot.subtitle_logistic;"Method: logistic DIF analysis; model:";"Metoda: logistyczna analiza DIF; model:"
+dif.plot.subtitle_mirt;Method: likelihood-ratio test in mirt, DIF model:;Metoda: test ilorazu wiarygodnosci w mirt, model DIF:
+dif.plot.ets_fill;ETS classification;Klasyfikacja ETS
+dif.msg.missing_group_var;DIF analysis skipped - no grouping variable was specified.;Analiza DIF pominieta - nie podano zmiennej grupujacej.
+dif.msg.too_few_groups;The grouping variable has fewer than 2 unique values.;Zmienna grupujaca ma mniej niz 2 unikalne wartosci.
+dif.msg.group_length_mismatch;The length of the group vector does not match the number of rows of the item data.;Dlugosc wektora grup nie zgadza sie z liczba wierszy danych itemowych.
+dif.msg.too_few_group_observations;Too few observations for DIF analysis: n_ref = %s, n_focal = %s. Minimum per group: %s.;Za malo obserwacji do analizy DIF: n_ref = %s, n_focal = %s. Minimum na grupe: %s.
+dif.msg.too_few_items;Too few common items for DIF analysis after filtering.;Za malo wspolnych itemow do analizy DIF po filtrowaniu.
+dif.model_label;DIF model:;Model DIF:
+dif.method.logistic_regression_sirt;logistic regression (sirt);regresja logistyczna (sirt)
+dif.method.mirt_lrt;likelihood-ratio test in a multiple-group IRT model (mirt);test ilorazu wiarygodnosci w wielogrupowym modelu IRT (mirt)
+dif.base_not_converged_warning;The baseline multiple-group model did not converge. DIF results for this comparison are unreliable.;Wielogrupowy model bazowy nie osiagnal zbieznosci. Wyniki DIF dla tego porownania sa niepewne.
+dif.items_not_converged_warning;The model with freed thresholds did not converge for the following items, so their test results are unreliable:;Dla nastepujacych itemow model z uwolnionymi progami nie osiagnal zbieznosci, wiec ich wyniki testu sa niepewne:
+summary.section_title;Summary and recommendations;Podsumowanie i rekomendacje
+summary.overall_title;Overall summary of analyses;Ogolne podsumowanie analiz
+summary.ctt_title;Classical Test Theory (CTT);Klasyczna Teoria Testow (CTT)
+summary.ctt_line;- **%s:** Alpha = %.3f, Omega = %.3f, N items = %d;- **%s:** Alpha = %.3f, Omega = %.3f, N itemow = %d
+summary.irt_title;Item Response Theory (IRT);Teoria Odpowiedzi na Pozycje Testowe (IRT)
+summary.irt_line;- **%s:** Selected model: %s, Item type: %s, N items = %d;- **%s:** Wybrany model: %s, Typ itemow: %s, N itemow = %d
+summary.discrimination_range;  - Discrimination (a): %.2f - %.2f;  - Dyskryminacja (a): %.2f - %.2f
+summary.difficulty_range;  - Difficulty/thresholds (b): %.2f - %.2f;  - Trudnosc/progi (b): %.2f - %.2f
+summary.item_fit_title;Item fit;Dopasowanie itemow (Item Fit)
+summary.sx2_line;- **%s (S-X2):** %d/%d items with misfit;- **%s (S-X2):** %d/%d itemow z niedopasowaniem
+summary.infit_line;- **%s (Infit):** %d/%d items outside the range;- **%s (Infit):** %d/%d itemow poza zakresem
+summary.elimination_title;Item elimination;Eliminacja itemow
+summary.elimination_line;- **%s:** %d items removed, %d remaining;- **%s:** Usunieto %d itemow, pozostalo %d
+summary.removed_items;  - Removed: %s;  - Usuniete: %s
+summary.recommendations_title;Recommendations;Zalecenia
+summary.recommendation_1;1. **Review items with low discrimination** (a < 0.50 or r.cor < 0.20) -;1. **Przejrzyj itemy z niska dyskryminacja** (a < 0.50 lub r.cor < 0.20) -
+summary.recommendation_1_detail;   consider revising or removing them.;   rozwazyc rewizje lub usuniecie.
+summary.recommendation_2;2. **Check items with misfit** (S-X2 p < 0.05 or infit > 1.30) -;2. **Sprawdz itemy z niedopasowaniem** (S-X2 p < 0.05 lub infit > 1.30) -
+summary.recommendation_2_detail;   examine the ICC for patterns of misfit.;   przeanalizuj ICC w poszukiwaniu wzorcow niedopasowania.
+summary.recommendation_3;3. **Check items with a high guessing parameter** (g > 0.25, especially g > 0.35) -;3. **Sprawdz itemy z wysokim parametrem zgadywania** (g > 0.25, szczegolnie g > 0.35) -
+summary.recommendation_3_detail;   this may indicate weak distractors or the possibility of guessing the correct answer.;   moga wskazywac na slabe dystraktory lub mozliwosc odgadniecia odpowiedzi.
+summary.recommendation_4;4. **Items with category C DIF** or significant DIF should be reviewed with respect to their content.;4. **Itemy z DIF kategorii C** lub istotnym DIF powinny byc zrewidowane pod katem tresci.
+summary.recommendation_5;5. **Reliability** - if alpha < 0.70, consider adding items or;5. **Rzetelnosc** - jesli alpha < 0.70, rozwazyc dodanie itemow lub
+summary.recommendation_5_detail;   revising existing ones.;   rewizje istniejacych.
+summary.recommendation_6;6. **Test information function** - check whether the test measures well;6. **Funkcja informacyjna testu** - sprawdz, czy test dobrze mierzy
+summary.recommendation_6_detail;   across the theta range relevant to the purpose of measurement.;   w zakresie theta istotnym dla celu pomiaru.
+export.section_title;Export results;Eksport wynikow
+export.excel_error;Excel save error:;Blad zapisu Excel:
+export.objects_available;Results are available in the R objects: ctt_results, irt_results, fit_results;Wyniki dostepne w obiektach R: ctt_results, irt_results, fit_results
+export.saved_to;Results saved to: **%s**;Wyniki zapisane do: **%s**
+export.sheets_title;Sheets:;Arkusze:
+report.footer;Report generated automatically using the `aazbie` package and the `psychometria_raport.Rmd` template.;Raport wygenerowany automatycznie za pomoca pakietu `aazbie` i szablonu `psychometria_raport.Rmd`.
+report.packages;Packages: psych, mirt, sirt, ggplot2.;Pakiety: psych, mirt, sirt, ggplot2.
+report.title;Psychometric Analysis - Report;Analiza Psychometryczna - Raport
+report.author;Automated analysis;Analiza automatyczna
+common.warning_upper;WARNING:;UWAGA:
+common.n_persons;N persons:;N osob:
+common.n_items;N items:;N itemow:
+common.item_type_label;Item type:;Typ itemow:
+common.item_type.binary;binary;binarne
+common.item_type.polytomous;polytomous;politomiczne
+common.item_type.mixed;mixed;mieszane
+data.instructions_title;Data preparation instructions;Instrukcja przygotowania danych
+data.instructions_text;The requirements for the data format, structure, response coding and the parameters of the `aazbie::render_report()` function are described in the project [README](https://github.com/szpliszla/aa-zbie#readme).;Opis wymagan dotyczacych formatu danych, struktury, kodowania odpowiedzi oraz parametrow funkcji `aazbie::render_report()` znajduje sie w [README](https://github.com/szpliszla/aa-zbie#readme) projektu.
+data.section_title;Data loading and validation;Wczytywanie i walidacja danych
+data.summary_title;Summary of the loaded dataset;Podsumowanie wczytanego zbioru
+data.input_file;Input file:;Plik wejsciowy:
+data.n_rows;Number of rows (N persons):;Liczba wierszy (N osob):
+data.n_cols;Number of columns (all variables):;Liczba kolumn (Wszystkie zmienne):
+data.excluded_items_title;Manually excluded test items;Recznie wykluczone pozycje testowe
+data.identified_items_title;Identified test items;Zidentyfikowane pozycje testowe
+data.prefix;Prefix:;Prefiks:
+data.n_active_items;Number of active items:;Liczba aktywnych pozycji:
+data.items_list;List:;Zestawienie:
+validation.section_title;Data validation;Walidacja danych
+validation.data_types_title;Data type check;Sprawdzenie typow danych
+validation.non_numeric_warning;The following columns were not numeric and have been converted by the engine:;Nastepujace kolumny nie byly numeryczne i zostaly skonwertowane przez silnik:
+validation.all_numeric_ok;All item columns are numeric. OK;Wszystkie kolumny itemow sa numeryczne. OK
+validation.coding_title;Response coding check;Sprawdzenie kodowania odpowiedzi
+validation.n_binary;Binary items (0/1): %d;Itemy binarne (0/1): %d
+validation.n_polytomous;Polytomous items (0/1/2/...): %d;Itemy politomiczne (0/1/2/...): %d
+validation.all_binary_ok;All items are coded as 0/1 (binary). OK;Wszystkie itemy zakodowane jako 0/1 (binarne). OK
+validation.invalid_values_warning;The following items contain invalid values and will be excluded:;Nastepujace itemy zawieraja nieprawidlowe wartosci i zostana wykluczone:
+validation.values;values;wartosci
+validation.missing_title;Missing data analysis;Analiza brakow danych
+validation.missing_per_item;Missing data per item:;Braki danych per item:
+validation.items_with_missing;Items with missing data:;Itemy z brakami danych:
+validation.no_missing_ok;No missing data in items. OK;Brak brakujacych danych w itemach. OK
+validation.missing_per_person;Missing data per person:;Braki danych per osoba:
+validation.mean_missing;Mean % missing:;Sredni % brakow:
+validation.median_missing;Median % missing:;Mediana % brakow:
+validation.max_missing;Max % missing:;Max % brakow:
+validation.persons_over_90;Persons with >90% missing:;Osoby z >90% brakow:
+validation.variance_title;Item variance check;Sprawdzenie wariancji itemow
+validation.zero_variance_warning;Items with zero variance (everyone answered the same way):;Itemy z zerowa wariancja (wszyscy odpowiedzieli tak samo):
+validation.value;value:;wartosc:
+validation.zero_variance_excluded;These items will be excluded from further analyses.;Te itemy zostana wykluczone z dalszych analiz.
+validation.all_variance_ok;All items have non-zero variance. OK;Wszystkie itemy maja niezerowa wariancje. OK
+validation.descriptives_title;Item descriptive statistics;Statystyki opisowe itemow
+validation.flag_very_hard;Very difficult;Bardzo trudny
+validation.flag_very_easy;Very easy;Bardzo latwy
+validation.flag_small_sample;Small sample;Mala proba
+validation.difficulty_interpretation_title;Difficulty interpretation (p = mean / max):;Interpretacja trudnosci (p = srednia / max):
+validation.difficulty_rule_1;p < 0.20: very difficult item (few people answer correctly);p < 0.20: item bardzo trudny (malo osob odpowiada poprawnie)
+validation.difficulty_rule_2;p = 0.20-0.80: optimal difficulty range;p = 0.20-0.80: optymalny zakres trudnosci
+validation.difficulty_rule_3;p > 0.80: easy item;p > 0.80: item latwy
+validation.difficulty_rule_4;p > 0.95 or p < 0.05: extreme item - consider removal;p > 0.95 lub p < 0.05: item ekstremalny - rozwazyc usuniecie
+validation.versions_title;Detection of test versions / structural missingness;Wykrywanie wersji testu / brakow strukturalnych
+validation.detection_method;Detection method:;Metoda wykrywania:
+validation.detection_method.none;none;brak
+validation.detection_method.version_var;version variable;zmienna wersji
+validation.detection_method.missing_pattern;missing data patterns;wzorce brakow danych
+validation.version_variable;Test version variable:;Zmienna wersji testu:
+validation.diagnostic_notes;Diagnostic notes:;Uwagi diagnostyczne:
+validation.detected_versions;Detected test versions:;Wykryte wersje testu:
+validation.unclassified_warning;%d observations (%s%%) were not assigned to any version and will be omitted from the per-version analyses.;%d obserwacji (%s%%) nie zostalo przypisanych do zadnej wersji i zostanie pominiete w analizach per wersja.
+validation.no_versions;No separate test versions were detected.;Nie wykryto osobnych wersji testu.
+validation.grouping_variable;Grouping variable:;Zmienna grupujaca:
+validation.group_distribution;Group distribution:;Rozklad grup:
+validation.observations;observations;obserwacji
+validation.per_version_analyses;Analyses will be conducted separately for the detected test versions.;Analizy beda prowadzone oddzielnie dla wykrytych wersji testu.
+validation.single_version;A single test version or no need to split the analyses by version.;Jedna wersja testu lub brak potrzeby rozdzielania analiz wedlug wersji.
+validation.msg.converted;Converted %d columns to numeric type;Skonwertowano %d kolumn na typ numeryczny
+validation.msg.invalid_excluded;Excluded items with invalid values:;Wykluczono itemy z nieprawidlowymi wartosciami:
+validation.msg.recoded;Rescaled items (minimum subtracted so that the range starts at 0):;Przeskalowano itemy (odjeto minimum, aby zakres zaczynal sie od 0):
+validation.msg.zero_variance_excluded;Excluded items with zero variance:;Wykluczono itemy z zerowa wariancja:
+validation.msg.version_var_missing_values;The test version variable has missing values for %d observations.;Zmienna wersji testu zawiera braki danych dla %d obserwacji.
+validation.msg.version_var_not_found;Test version variable not found: %s. Attempted to detect versions based on missing data.;Nie znaleziono zmiennej wersji testu: %s. Podjeto probe wykrycia wersji na podstawie brakow danych.
+validation.msg.rare_patterns_unassigned;No version was assigned to %d observations with rare missing data patterns.;Nie przypisano wersji dla %d obserwacji z rzadkimi wzorcami brakow danych.
+validation.msg.no_major_pattern;No major missing data pattern meeting the critical criterion was detected.;Nie wykryto zadnego glownego wzorca brakow danych spelniajacego kryterium krytyczne.
+validation.msg.no_version_info;No version variable was provided and no missing data that would allow versions to be identified were detected.;Nie podano zmiennej wersji i nie wykryto brakow danych pozwalajacych rozpoznac wersje.
+validation.msg.unclassified;Test version detection left %d observations without an assigned version (%s%%).;Wykrywanie wersji testu pozostawilo %d obserwacji bez przypisanej wersji (%s%%).
+validation.msg.auto_detection_disabled;Automatic test version detection was disabled because no version was assigned to %d observations (%s%%). Analyses will be performed without splitting by version.;Automatyczne wykrywanie wersji testu zostalo wylaczone, poniewaz nie przypisalo wersji dla %d obserwacji (%s%%). Analizy zostana wykonane bez podzialu na wersje.
+validation.msg.versions_without_items;No items were assigned to the following versions: %s;Dla nastepujacych wersji nie przypisano zadnych itemow: %s
+validation.issue.brak_wartosci;no values;brak wartosci
+validation.issue.niecalkowite;non-integer values;wartosci niecalkowite
+validation.issue.ujemne;negative values;wartosci ujemne
+validation.issue.luki_w_kategoriach;gaps between categories;luki w kategoriach
+ctt.section_title;Classical Test Theory (CTT);Klasyczna Teoria Testow (CTT)
+ctt.method_description_title;Method description;Opis metody
+ctt.method_intro;**Classical Test Theory (CTT)** is the basic approach to psychometric analysis. We assess the quality of the items and of the whole test using the following indicators:;**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy psychometrycznej. Oceniamy jakosc itemow i calego testu za pomoca nastepujacych wskaznikow:
+ctt.table.indicator;Indicator;Wskaznik
+ctt.table.description;Description;Opis
+ctt.table.criterion;Criterion;Kryterium
+ctt.difficulty_label;Difficulty (p);Trudnosc (p)
+ctt.difficulty_description;Proportion of correct answers;Odsetek poprawnych odpowiedzi
+ctt.difficulty_criterion;0.20 - 0.80 (optimal);0.20 - 0.80 (optymalne)
+ctt.discrimination_label;Discrimination (r.cor);Moc roznicujaca (r.cor)
+ctt.discrimination_description;Corrected item-test correlation;Skorygowana korelacja item-test
+ctt.discrimination_criterion;\> 0.30 (good), \> 0.20 (acceptable);\> 0.30 (dobra), \> 0.20 (akceptowalna)
+ctt.rdrop_description;Item-rest correlation;Korelacja item-reszta (item-rest)
+ctt.alpha_label;Cronbach's alpha;Alpha Cronbacha
+ctt.alpha_description;Test reliability (internal consistency);Rzetelnosc testu (spojnosc wewn.)
+ctt.alpha_criterion;\> 0.70 (acceptable), \> 0.80 (good);\> 0.70 (akceptowalna), \> 0.80 (dobra)
+ctt.omega_label;McDonald's omega;Omega McDonalda
+ctt.omega_description;Reliability accounting for the factor structure;Rzetelnosc uwzgledniajaca strukture
+ctt.interpretation_title;How to interpret the results:;Sposob interpretacji:
+ctt.difficulty_interpretation;A value close to 0 = difficult item (few correct answers), close to 1 = easy item. Optimal items have p between 0.20 and 0.80. Extreme items (p \< 0.05 or p \> 0.95) do not differentiate respondents and should be considered for removal.;Wartosc bliska 0 = item trudny (malo osob poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a 0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznicuja badanych i powinny byc rozwazone do usuniecia.
+ctt.discrimination_interpretation;Shows how well the item distinguishes between people with high and low scores. Negative values or values close to 0 indicate a problem.;Informuje, jak dobrze item rozroznia miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie 0 wskazuja na problem.
+ctt.alpha_interpretation;A measure of internal consistency. It increases with the number of items and their intercorrelations. Alpha \> 0.70 is generally acceptable.;Miara spojnosci wewnetrznej. Rosnie z liczba itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
+ctt.results_title;CTT results;Wyniki CTT
+ctt.not_run;CTT analysis was not performed:;Nie przeprowadzono analizy CTT:
+ctt.zero_variance_excluded;Excluded %d items with zero variance: %s;Wykluczono %d itemow z zerowa wariancja: %s
+ctt.reliability_title;Reliability;Rzetelnosc
+ctt.item_stats_title;Item statistics;Statystyki itemow
+ctt.interpretation_results_title;CTT interpretation;Interpretacja CTT
+ctt.n_negative;**Items with negative correlation:** %d (to be removed);**Itemow z ujemna korelacja:** %d (do usuniecia)
+ctt.n_weak;**Weak items (r < 0.20):** %d (to be considered);**Itemow slabych (r < 0.20):** %d (do rozwazenia)
+ctt.n_good;**Good items (r >= 0.30):** %d of %d;**Itemow dobrych (r >= 0.30):** %d z %d
+ctt.recommendation_label;Recommendation:;Rekomendacja:
+ctt.negative_items_recommendation;The following items have a negative correlation with the total score and should be removed or revised:;Nastepujace itemy maja ujemna korelacje z wynikiem calkowitym i powinny zostac usuniete lub zrewidowane:
+ctt.elimination_section_title;Sequential item elimination;Sekwencyjna eliminacja itemow
+ctt.elimination_title;Sequential elimination of weak items;Sekwencyjna eliminacja slabych itemow
+ctt.elimination_procedure;Elimination procedure:;Procedura eliminacji:
+ctt.elimination_step_1;**Step 1:** Remove items with negative correlation (r <= 0);**Krok 1:** Usun itemy z ujemna korelacja (r <= 0)
+ctt.elimination_step_2;**Step 2:** Remove items with very low correlation (r <= 0.10);**Krok 2:** Usun itemy z bardzo niska korelacja (r <= 0.10)
+ctt.elimination_step_3;**Step 3:** Remove items with low correlation (r <= 0.15);**Krok 3:** Usun itemy z niska korelacja (r <= 0.15)
+ctt.elimination_not_run;Elimination was not performed:;Nie przeprowadzono eliminacji:
+ctt.reliability_excellent;Excellent;Doskonala
+ctt.reliability_good;Good;Dobra
+ctt.reliability_acceptable;Acceptable;Akceptowalna
+ctt.reliability_questionable;Questionable;Watpliwa
+ctt.reliability_low;Low;Niska
+ctt.rating_remove;REMOVE (negative correlation);USUN (ujemna korelacja)
+ctt.rating_weak;Weak;Slaby
+ctt.rating_questionable;Questionable;Watpliwy
+ctt.rating_acceptable;Acceptable;Akceptowalny
+ctt.rating_good;Good;Dobry
+ctt.rating_no_data;No data;Brak danych
+ctt.plot_title;CTT item quality map;Mapa jakosci itemow CTT
+ctt.plot_y;Item-test correlation (r.cor);Korelacja item-test (r.cor)
+ctt.step_negative;Negative correlations (r <= 0);Ujemne korelacje (r <= 0)
+ctt.step_very_low;Very low correlation (r <= 0.10);Bardzo niska korelacja (r <= 0.10)
+ctt.step_low;Low correlation (r <= 0.15);Niska korelacja (r <= 0.15)
+ctt.step_custom;Correlation r <= %s;Korelacja r <= %s
+ctt.step_after;After elimination;Po eliminacji
+ctt.msg.too_few_items;Too few items for CTT analysis (minimum 3).;Za malo itemow do analizy CTT (minimum 3).
+ctt.msg.too_few_observations;Too few observations for CTT analysis (minimum 10).;Za malo obserwacji do analizy CTT (minimum 10).
+ctt.msg.too_few_pairwise;Too few common observations for at least one pair of items. Cronbach's alpha was not computed.;Za malo wspolnych obserwacji dla co najmniej jednej pary itemow. Alpha Cronbacha nie zostala obliczona.
+ctt.msg.invalid_correlation;The correlation matrix is invalid. Cronbach's alpha was not computed.;Macierz korelacji jest niepoprawna. Alpha Cronbacha nie zostala obliczona.
+ctt.msg.elimination_too_few_items;Too few items for sequential elimination (minimum 3).;Za malo itemow do sekwencyjnej eliminacji (minimum 3).
+ctt.msg.alpha_timeout;Computing Cronbach's alpha exceeded the time limit (%s s). Elimination was interrupted.;Obliczanie alpha Cronbacha przekroczylo limit czasu (%s s). Eliminacja zostala przerwana.
+irt.section_title;Item Response Theory (IRT);Teoria Odpowiedzi na Pozycje Testowe (IRT)
+irt.method_description_title;Method description;Opis metody
+irt.method_intro;**Item Response Theory (IRT)** models the probability of a correct answer as a function of the person's ability (theta) and the item parameters.;**Teoria Odpowiedzi na Pozycje Testowe (IRT)** modeluje prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby (theta) i parametrow itemu.
+irt.binary_models_title;Binary models;Modele binarne
+irt.polytomous_models_title;Polytomous models;Modele politomiczne
+irt.table.model;Model;Model
+irt.table.parameters;Parameters;Parametry
+irt.table.description;Description;Opis
+irt.1pl_parameters;difficulty (b);trudnosc (b)
+irt.1pl_description;All items discriminate equally well;Wszystkie itemy rownie dobrze roznicuja
+irt.2pl_parameters;discrimination (a), difficulty (b);dyskryminacja (a), trudnosc (b)
+irt.2pl_description;Items may differ in their discriminating power;Itemy moga roznic sie moca roznicujaca
+irt.3pl_parameters;discrimination (a), difficulty (b), guessing (g);dyskryminacja (a), trudnosc (b), zgadywanie (g)
+irt.3pl_description;The model accounts for the possibility of guessing the correct answer;Model uwzglednia mozliwosc odgadniecia poprawnej odpowiedzi
+irt.pcm_parameters;difficulty thresholds (b1, b2, ...);progi trudnosci (b1, b2, ...)
+irt.pcm_description;Partial Credit Model with equal discrimination;Partial Credit Model z rowna dyskryminacja
+irt.gpcm_parameters;discrimination (a), thresholds (b1, b2, ...);dyskryminacja (a), progi (b1, b2, ...)
+irt.gpcm_description;Generalized Partial Credit Model with free discrimination;Generalized Partial Credit Model z wolna dyskryminacja
+irt.item_parameters_title;Item parameters (IRT);Parametry itemow (IRT)
+irt.table.parameter;Parameter;Parametr
+irt.table.symbol;Symbol;Symbol
+irt.table.typical_range;Typical range;Zakres typowy
+irt.discrimination;Discrimination;Dyskryminacja
+irt.discrimination_description;How steeply the ICC rises;Jak stromo rosnie krzywa ICC
+irt.discrimination_range;0.5 - 2.5 (optimal);0.5 - 2.5 (optymalnie)
+irt.difficulty;Difficulty;Trudnosc
+irt.difficulty_description;Theta level at which P = 0.50;Poziom theta, przy ktorym P = 0.50
+irt.guessing;Guessing;Zgadywanie
+irt.guessing_description;Lower asymptote of the ICC;Dolna asymptota ICC
+irt.thresholds;Thresholds;Progi
+irt.thresholds_description;Transition points between categories;Punkty przejscia miedzy kategoriami
+irt.theta_range;-3 to +3;-3 do +3
+irt.model_comparison_title;Model comparison;Porownanie modeli
+irt.model_comparison_text;Models are compared using the likelihood ratio test (LRT). If the more complex model is significantly better (p \< 0.05), it is selected. Additionally, AIC and BIC are compared - lower values indicate a better model.;Porownanie modeli wykonujemy testem ilorazu wiarogodnosci (LRT). Jesli bardziej zlozony model jest istotnie lepszy (p \< 0.05), wybieramy go. Dodatkowo porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
+irt.results_title;IRT results;Wyniki IRT
+irt.not_run;IRT analysis was not performed:;Nie przeprowadzono analizy IRT:
+irt.lrt_title;Likelihood ratio test (LRT);Test ilorazu wiarogodnosci (LRT)
+irt.selected_model;Selected model:;Wybrany model:
+irt.item_parameters_results_title;IRT item parameters;Parametry itemow IRT
+irt.model_used;Model used for further plots and analyses:;Do dalszych wykresow i analiz uzyto modelu:
+irt.parameters_interpretation_title;Interpretation of IRT parameters:;Interpretacja parametrow IRT:
+irt.discrimination_interpretation;The higher it is, the better the item distinguishes between people of different ability.;Im wieksza, tym lepiej item rozroznia osoby o roznych zdolnosciach.
+irt.discrimination_rule_1;a < 0.50: the item discriminates weakly;a < 0.50: item slabo roznicuje
+irt.discrimination_rule_2;a = 0.50-1.50: moderate to good discrimination;a = 0.50-1.50: umiarkowana do dobrej dyskryminacji
+irt.discrimination_rule_3;a > 1.50: very good discrimination;a > 1.50: bardzo dobra dyskryminacja
+irt.discrimination_rule_4;a < 0: the item is inversely related to the trait - serious problem;a < 0: item odwrotnie skorelowany z cecha - powazny problem
+irt.difficulty_interpretation;The point on the theta scale where the probability of a correct answer is about 0.50.;Punkt na skali theta, gdzie prawdopodobienstwo poprawnej odpowiedzi wynosi ok. 0.50.
+irt.difficulty_rule_1;b < -2: very easy item;b < -2: item bardzo latwy
+irt.difficulty_rule_2;b = -1 to +1: moderate difficulty;b = -1 do +1: umiarkowana trudnosc
+irt.difficulty_rule_3;b > +2: very difficult item;b > +2: item bardzo trudny
+irt.thresholds_interpretation;Points on the theta scale where the probability of moving to a higher category is 0.50.;Punkty na skali theta, gdzie prawdopodobienstwo przejscia do wyzszej kategorii wynosi 0.50.
+irt.plots_title;IRT plots for the selected model:;Wykresy IRT dla wybranego modelu:
+irt.tif_title;Test information function (TIF);Funkcja informacyjna testu (TIF)
+irt.icc_title;Item characteristic curves (ICC);Krzywe charakterystyczne itemow (ICC)
+irt.empirical_icc_title;Empirical fit of the ICC to the data;Empiryczne dopasowanie ICC do danych
+irt.theta_dist_title;Distribution of person ability (theta);Rozklad zdolnosci osob (theta)
+irt.unified_calibration_text;**Concurrent IRT calibration** on the full data matrix (all versions, structural missingness handled by FIML).;**Wspolna kalibracja IRT** na pelnej macierzy danych (wszystkie wersje, braki strukturalne obslugiwane przez FIML).
+irt.n_items_short;Items:;Itemow:
+irt.n_persons_short;Persons:;Osob:
+irt.unified_calibration_label;Concurrent calibration;Wspolna kalibracja
+irt.rating_very_weak;Very weak;Bardzo slaby
+irt.rating_weak;Weak;Slaby
+irt.rating_moderate;Moderate;Umiarkowany
+irt.rating_good;Good;Dobry
+irt.rating_very_good;Very good;Bardzo dobry
+irt.rating_fixed_1pl;Fixed (1PL);Ustalone (1PL)
+irt.plot.tif_title;Test information function;Funkcja informacyjna testu
+irt.plot.category_curves;Score category curves;Krzywe kategorii punktowych
+irt.plot.items_range;items %s to %s;itemy %s do %s
+irt.plot.theta_title;Theta distribution (EAP);Rozklad theta (EAP)
+irt.plot.theta_x;Ability (theta);Zdolnosc (theta)
+irt.plot.theta_y;Number of persons;Liczba osob
+irt.plot.p_correct;P(correct);P(poprawnej)
+irt.plot.expected_score;Expected item score (0-1);Oczekiwany wynik itemu (0-1)
+irt.plot.empirical_title;Empirical fit;Empiryczne dopasowanie
+irt.msg.too_few_data;Too little data for IRT analysis (min. 3 items, 50 persons).;Za malo danych do analizy IRT (min. 3 itemy, 50 osob).
+irt.msg.rasch_pcm_not_converged;The Rasch-PCM model did not converge.;Model Rasch-PCM nie osiagnal zbieznosci.
+irt.msg.no_finite_theta;No finite theta values.;Brak skonczonych wartosci theta.
+col.N_kategorii;N_categories;N_kategorii
+col.Procent_brakow;Missing_percent;Procent_brakow
+col.Trudnosc_p;Difficulty_p;Trudnosc_p
+col.Wariancja;Variance;Wariancja
+col.Flaga;Flag;Flaga
+col.Wskaznik;Indicator;Wskaznik
+col.Wartosc;Value;Wartosc
+col.Wersja;Version;Wersja
+col.Interpretacja;Interpretation;Interpretacja
+col.Alpha_bez_itemu;Alpha_if_deleted;Alpha_bez_itemu
+col.Ocena;Rating;Ocena
+col.Liczba_itemow;N_items;Liczba_itemow
+col.Krok;Step;Krok
+col.N_itemow;N_items;N_itemow
+col.Usunieto;Removed;Usunieto
+col.Porownanie;Comparison;Porownanie
+col.a_dyskryminacja;a_discrimination;a_dyskryminacja
+col.b_trudnosc;b_difficulty;b_trudnosc
+col.g_zgadywanie;g_guessing;g_zgadywanie
+col.u_gorna_asymptota;u_upper_asymptote;u_gorna_asymptota
+col.Ocena_a;Rating_a;Ocena_a
+col.Dopasowanie;Fit;Dopasowanie
+col.Infit_ocena;Infit_rating;Infit_ocena
+col.Outfit_ocena;Outfit_rating;Outfit_ocena
+col.converged;Converged;Zbieznosc
+col.wybrany_model;Selected_model;Wybrany_model
+col.grupa;Group;Grupa
+col.wersja;Version;Wersja
+common.yes;Yes;Tak
+common.no;No;Nie
+export.sheet_person_scores;Person_scores;Wyniki_osob

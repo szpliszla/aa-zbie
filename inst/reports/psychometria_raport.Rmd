@@ -1,8 +1,10 @@
 ---
-title: "Analiza Psychometryczna - Raport"
+# Default (English) title and author. The report-title chunk overrides them with
+# translations in the selected language (pandoc uses the last metadata block).
+title: "Psychometric Analysis - Report"
 subtitle: "CTT, IRT, Item Fit, DIF"
-author: "Analiza automatyczna"
-date: "`r format(Sys.time(), '%d %B %Y')`"
+author: "Automated analysis"
+date: "`r format(Sys.Date(), '%Y-%m-%d')`"
 output:
   html_document:
     toc: true
@@ -13,14 +15,17 @@ output:
     code_folding: hide
     df_print: paged
 params:
-  # --- Sciezki i identyfikatory struktur ---
+  # --- Report language (column in inst/reports/tlumaczenia.csv) ---
+  jezyk: "en"
+
+  # --- Paths and structure identifiers ---
   data_path: !expr system.file("extdata", "math_data.csv", package = "aazbie")
   item_prefix: "mat_"
   id_var: NULL
   group_var: NULL
   exclude_items: NULL
 
-  # --- Zarzadzanie wersjami testu ---
+  # --- Test version handling ---
   version_var: NULL
   min_pattern_prop: 0.05
   item_missing_max_prop: 0.90
@@ -28,18 +33,23 @@ params:
   max_unclassified_prop: 0.20
   detected_version_col: ".detected_version"
 
-  # --- Kryteria Walidacji i CTT ---
+  # --- Validation and CTT criteria ---
   alpha_threshold: 0.70
   discrimination_min: 0.30
   correlation_threshold_negative: 0.00
   correlation_threshold_low: 0.15
 
-  # --- Parametry Analizy DIF ---
+  # --- DIF analysis parameters ---
   dif_group_var: NULL
   dif_method: "logistic"
 
-  # --- Kalibracja IRT ---
+  # --- IRT calibration ---
   unified_irt: true
+
+  # --- Excel export ---
+  # Path of the Excel file. NULL: <data file>_results_<timestamp>.xlsx in the
+  # knitr working directory (render_report() sets a path next to the report).
+  excel_path: NULL
 editor_options:
   markdown:
     wrap: 72
@@ -57,70 +67,53 @@ knitr::opts_chunk$set(
   error = TRUE
 )
 
-if (requireNamespace("aazbie", quietly = TRUE)) {
-  library(aazbie)
+if (!requireNamespace("aazbie", quietly = TRUE)) {
+  stop("Install the aazbie package - see README", call. = FALSE)
 }
+library(aazbie)
 
-# Fallback: zaladuj pliki silnika ze zrodel, jesli pakiet nie jest zainstalowany
-if (!exists("read_psych_data", mode = "function")) {
-  engine_candidates_valid <- c(
-    file.path("..", "R", "silnik_psychometria_wczytanie_walidacja.R"),
-    file.path("R", "silnik_psychometria_wczytanie_walidacja.R")
-  )
-  engine_path_valid <- engine_candidates_valid[file.exists(engine_candidates_valid)][1]
-  if (is.na(engine_path_valid)) {
-    stop("Nie znaleziono pliku silnika: silnik_psychometria_wczytanie_walidacja.R")
-  }
-  source(engine_path_valid)
-}
-
-if (!exists("run_ctt_for_items", mode = "function")) {
-  engine_candidates_analizy <- c(
-    file.path("..", "R", "silnik_psychometria_analizy.R"),
-    file.path("R", "silnik_psychometria_analizy.R")
-  )
-  engine_path_analizy <- engine_candidates_analizy[file.exists(engine_candidates_analizy)][1]
-  if (is.na(engine_path_analizy)) {
-    stop("Nie znaleziono pliku silnika: silnik_psychometria_analizy.R")
-  }
-  source(engine_path_analizy)
-}
-
-# Helper do formatowania tabel
-fmt_table <- function(df, ...) {
-  if (requireNamespace("kableExtra", quietly = TRUE)) {
-    kableExtra::kbl(df, row.names = FALSE, ...) |>
-      kableExtra::kable_styling(
-        bootstrap_options = c("striped", "hover", "condensed"),
-        full_width = FALSE,
-        font_size = 13
-      )
-  } else {
-    knitr::kable(df, row.names = FALSE, ...)
-  }
-}
+# The translation file sits next to the template (knitr working directory),
+# so it always matches the version of the template being rendered.
+wczytaj_tlumaczenia(
+  params$jezyk,
+  sciezka = if (file.exists("tlumaczenia.csv")) "tlumaczenia.csv" else NULL
+)
 ```
 
-# Instrukcja przygotowania danych
+```{r report-title, echo=FALSE}
+# Title and author in the report language. Inline code in the YAML header runs
+# before setup (no translations); pandoc uses the field from the last metadata block.
+cat(
+  "\n---\n",
+  "title: ", encodeString(t("report.title"), quote = '"'), "\n",
+  "author: ", encodeString(t("report.author"), quote = '"'), "\n",
+  "---\n\n",
+  sep = ""
+)
+```
 
-Opis wymagan dotyczacych formatu danych, struktury, kodowania odpowiedzi oraz parametrow funkcji `aazbie::render_report()` znajduje sie w [README](https://github.com/szpliszla/aa-zbie#readme) projektu. # Wczytywanie i walidacja danych
+# `r t('data.instructions_title')`
+
+`r t('data.instructions_text')`
+
+# `r t('data.section_title')`
 
 ```{r load-data}
 # ============================================================================
-# WCZYTYWANIE DANYCH PRZEZ SILNIK
+# DATA LOADING VIA THE ENGINE
 # ============================================================================
 
 raw_data <- read_psych_data(params$data_path)
 
-cat("### Podsumowanie wczytanego zbioru\n\n")
-cat("- **Plik wejsciowy:**", params$data_path, "\n")
-cat("- **Liczba wierszy (N osob):**", nrow(raw_data), "\n")
-cat("- **Liczba kolumn (Wszystkie zmienne):**", ncol(raw_data), "\n\n")
+cat("###", t("data.summary_title"), "\n\n")
+cat(sprintf("- **%s** %s\n", t("data.input_file"), params$data_path))
+cat(sprintf("- **%s** %d\n", t("data.n_rows"), nrow(raw_data)))
+cat(sprintf("- **%s** %d\n\n", t("data.n_cols"), ncol(raw_data)))
 ```
 
 ```{r identify-items}
 # ============================================================================
-# IDENTYFIKACJA POZYCJI TESTOWYCH PRZEZ SILNIK
+# TEST ITEM IDENTIFICATION VIA THE ENGINE
 # ============================================================================
 
 item_cols <- identify_item_columns(
@@ -130,21 +123,21 @@ item_cols <- identify_item_columns(
 )
 
 if (length(params$exclude_items) > 0) {
-  cat("### Recznie wykluczone pozycje testowe\n\n")
+  cat("###", t("data.excluded_items_title"), "\n\n")
   cat(paste(params$exclude_items, collapse = ", "), "\n\n")
 }
 
-cat("### Zidentyfikowane pozycje testowe\n\n")
-cat("- **Prefiks:**", params$item_prefix, "\n")
-cat("- **Liczba aktywnych pozycji:**", length(item_cols), "\n")
-cat("- **Zestawienie:**", paste(item_cols, collapse = ", "), "\n\n")
+cat("###", t("data.identified_items_title"), "\n\n")
+cat(sprintf("- **%s** %s\n", t("data.prefix"), params$item_prefix))
+cat(sprintf("- **%s** %d\n", t("data.n_active_items"), length(item_cols)))
+cat(sprintf("- **%s** %s\n\n", t("data.items_list"), paste(item_cols, collapse = ", ")))
 ```
 
-## Walidacja danych
+## `r t('validation.section_title')`
 
 ```{r validation}
 # ============================================================================
-# KOMPLEKSOWA WALIDACJA DANYCH
+# COMPREHENSIVE DATA VALIDATION
 # ============================================================================
 
 validation_result <- validate_items_data(
@@ -157,45 +150,46 @@ items_data <- validation_result$items_data
 validation_issues <- validation_result$validation_issues
 validation_warnings <- validation_result$validation_warnings
 
-# Informacje o typie itemow (binarne / politomiczne / mieszane)
+# Item type information (binary / polytomous / mixed)
 item_type <- validation_result$item_type
 item_max_scores <- validation_result$item_max_scores
 n_categories <- validation_result$n_categories
 
-# --- 1. Sprawdzenie typow danych ---
-cat("### 1. Sprawdzenie typow danych\n\n")
+# --- 1. Data type check ---
+cat("### 1.", t("validation.data_types_title"), "\n\n")
 
 non_numeric <- validation_result$non_numeric_items
 
 if (length(non_numeric) > 0) {
-  cat("**UWAGA:** Nastepujace kolumny nie byly numeryczne i zostaly skonwertowane przez silnik:\n\n")
+  cat(sprintf("**%s** %s\n\n", t("common.warning_upper"), t("validation.non_numeric_warning")))
 
   conversion_diagnostics <- validation_result$conversion_diagnostics
 
   if (nrow(conversion_diagnostics) > 0) {
-    print(fmt_table(conversion_diagnostics))
+    show_table(conversion_diagnostics)
     cat("\n")
   } else {
     cat(paste("-", non_numeric, collapse = "\n"), "\n\n")
   }
 } else {
-  cat("Wszystkie kolumny itemow sa numeryczne. OK\n\n")
+  cat(t("validation.all_numeric_ok"), "\n\n")
 }
 
-# --- 2. Sprawdzenie kodowania odpowiedzi ---
-cat("### 2. Sprawdzenie kodowania odpowiedzi\n\n")
+# --- 2. Response coding check ---
+cat("### 2.", t("validation.coding_title"), "\n\n")
 
 if (!is.null(item_type) && item_type %in% c("polytomous", "mixed")) {
-  cat("**Typ itemow:**", item_type, "\n\n")
+  cat(sprintf("**%s** %s\n\n", t("common.item_type_label"),
+              t(paste0("common.item_type.", item_type))))
 
   n_binary <- sum(item_max_scores == 1, na.rm = TRUE)
   n_poly <- sum(item_max_scores > 1, na.rm = TRUE)
 
   if (item_type == "mixed") {
-    cat(sprintf("- Itemy binarne (0/1): %d\n", n_binary))
-    cat(sprintf("- Itemy politomiczne (0/1/2/...): %d\n", n_poly))
+    cat("-", sprintf(t("validation.n_binary"), n_binary), "\n")
+    cat("-", sprintf(t("validation.n_polytomous"), n_poly), "\n")
   } else {
-    cat(sprintf("- Itemy politomiczne (0/1/2/...): %d\n", n_poly))
+    cat("-", sprintf(t("validation.n_polytomous"), n_poly), "\n")
   }
   cat("\n")
 
@@ -207,32 +201,32 @@ if (!is.null(item_type) && item_type %in% c("polytomous", "mixed")) {
       N_kategorii = n_categories[poly_items],
       row.names = NULL
     )
-    print(fmt_table(poly_info))
+    show_table(poly_info)
     cat("\n")
   }
 } else {
-  cat("Wszystkie itemy zakodowane jako 0/1 (binarne). OK\n\n")
+  cat(t("validation.all_binary_ok"), "\n\n")
 }
 
 non_binary <- validation_result$non_binary_items
 
 if (length(non_binary) > 0) {
-  cat("**UWAGA:** Nastepujace itemy zawieraja nieprawidlowe wartosci i zostana wykluczone:\n\n")
+  cat(sprintf("**%s** %s\n\n", t("common.warning_upper"), t("validation.invalid_values_warning")))
 
   for (col in non_binary) {
     vals <- validation_result$non_binary_values[[col]]
-    cat("-", col, ": wartosci =", paste(vals, collapse = ", "), "\n")
+    cat("-", col, ":", t("validation.values"), "=", paste(vals, collapse = ", "), "\n")
   }
   cat("\n")
 }
 
-# --- 3. Braki danych ---
-cat("### 3. Analiza brakow danych\n\n")
+# --- 3. Missing data ---
+cat("### 3.", t("validation.missing_title"), "\n\n")
 
 missing_per_item <- colMeans(is.na(items_data)) * 100
 missing_per_person <- rowMeans(is.na(items_data)) * 100
 
-cat("**Braki danych per item:**\n\n")
+cat(sprintf("**%s**\n\n", t("validation.missing_per_item")))
 missing_summary <- data.frame(
   Item = names(missing_per_item),
   Procent_brakow = round(missing_per_item, 1)
@@ -241,39 +235,39 @@ missing_summary <- missing_summary[order(-missing_summary$Procent_brakow), ]
 
 items_with_missing <- missing_summary[missing_summary$Procent_brakow > 0, ]
 if (nrow(items_with_missing) > 0) {
-  cat("Itemy z brakami danych:\n\n")
-  print(fmt_table(items_with_missing))
+  cat(t("validation.items_with_missing"), "\n\n")
+  show_table(items_with_missing)
   cat("\n")
 } else {
-  cat("Brak brakujacych danych w itemach. OK\n\n")
+  cat(t("validation.no_missing_ok"), "\n\n")
 }
 
-cat("\n**Braki danych per osoba:**\n\n")
-cat("- Sredni % brakow:", round(mean(missing_per_person), 1), "%\n")
-cat("- Mediana % brakow:", round(stats::median(missing_per_person), 1), "%\n")
-cat("- Max % brakow:", round(max(missing_per_person), 1), "%\n")
-cat("- Osoby z >90% brakow:", sum(missing_per_person > 90), "\n\n")
+cat(sprintf("\n**%s**\n\n", t("validation.missing_per_person")))
+cat("-", t("validation.mean_missing"), round(mean(missing_per_person), 1), "%\n")
+cat("-", t("validation.median_missing"), round(stats::median(missing_per_person), 1), "%\n")
+cat("-", t("validation.max_missing"), round(max(missing_per_person), 1), "%\n")
+cat("-", t("validation.persons_over_90"), sum(missing_per_person > 90), "\n\n")
 
-# --- 4. Itemy z zerowa wariancja ---
-cat("### 4. Sprawdzenie wariancji itemow\n\n")
+# --- 4. Zero-variance items ---
+cat("### 4.", t("validation.variance_title"), "\n\n")
 
 zero_var_items <- validation_result$zero_variance_items
 
 if (length(zero_var_items) > 0) {
-  cat("**UWAGA:** Itemy z zerowa wariancja (wszyscy odpowiedzieli tak samo):\n\n")
+  cat(sprintf("**%s** %s\n\n", t("common.warning_upper"), t("validation.zero_variance_warning")))
 
   for (col in zero_var_items) {
     val <- unique(raw_data[[col]][!is.na(raw_data[[col]])])
-    cat("-", col, "(wartosc:", val, ")\n")
+    cat("-", col, paste0("(", t("validation.value")), val, ")\n")
   }
 
-  cat("\nTe itemy zostana wykluczone z dalszych analiz.\n\n")
+  cat("\n", t("validation.zero_variance_excluded"), "\n\n", sep = "")
 } else {
-  cat("Wszystkie itemy maja niezerowa wariancje. OK\n\n")
+  cat(t("validation.all_variance_ok"), "\n\n")
 }
 
-# --- 5. Statystyki opisowe itemow ---
-cat("### 5. Statystyki opisowe itemow\n\n")
+# --- 5. Item descriptive statistics ---
+cat("### 5.", t("validation.descriptives_title"), "\n\n")
 
 item_means <- colMeans(items_data, na.rm = TRUE)
 item_n <- colSums(!is.na(items_data))
@@ -293,26 +287,26 @@ desc_stats <- data.frame(
 )
 
 desc_stats$Flaga <- ""
-desc_stats$Flaga[desc_stats$Trudnosc_p < 0.05] <- "Bardzo trudny"
-desc_stats$Flaga[desc_stats$Trudnosc_p > 0.95] <- "Bardzo latwy"
-desc_stats$Flaga[desc_stats$N < 30] <- "Mala proba"
+desc_stats$Flaga[desc_stats$Trudnosc_p < 0.05] <- t("validation.flag_very_hard")
+desc_stats$Flaga[desc_stats$Trudnosc_p > 0.95] <- t("validation.flag_very_easy")
+desc_stats$Flaga[desc_stats$N < 30] <- t("validation.flag_small_sample")
 
-cat("**Interpretacja trudnosci (p = srednia / max):**\n\n")
-cat("- p < 0.20: item bardzo trudny (malo osob odpowiada poprawnie)\n")
-cat("- p = 0.20-0.80: optymalny zakres trudnosci\n")
-cat("- p > 0.80: item latwy\n")
-cat("- p > 0.95 lub p < 0.05: item ekstremalny - rozwazyc usuniecie\n\n")
+cat(sprintf("**%s**\n\n", t("validation.difficulty_interpretation_title")))
+cat("-", t("validation.difficulty_rule_1"), "\n")
+cat("-", t("validation.difficulty_rule_2"), "\n")
+cat("-", t("validation.difficulty_rule_3"), "\n")
+cat("-", t("validation.difficulty_rule_4"), "\n\n")
 
-print(fmt_table(desc_stats))
+show_table(desc_stats)
 cat("\n")
 ```
 
 ```{r detect-versions}
 # ============================================================================
-# WYKRYWANIE WERSJI TESTU (missing by design)
+# TEST VERSION DETECTION (missing by design)
 # ============================================================================
 
-cat("### 6. Wykrywanie wersji testu / brakow strukturalnych\n\n")
+cat("### 6.", t("validation.versions_title"), "\n\n")
 
 version_var <- params$version_var
 
@@ -335,42 +329,43 @@ version_items <- version_result$version_items
 version_data <- version_result$version_data
 has_versions <- version_result$has_multiple_versions
 
-cat("- **Metoda wykrywania:**", version_result$detection_method, "\n")
+cat(sprintf("- **%s** %s\n", t("validation.detection_method"),
+            t(paste0("validation.detection_method.", version_result$detection_method))))
 
 if (!is.null(version_var) && version_var %in% names(raw_data)) {
-  cat("- **Zmienna wersji testu:**", version_var, "\n")
+  cat(sprintf("- **%s** %s\n", t("validation.version_variable"), version_var))
 }
 
 if (length(version_result$detection_warnings) > 0) {
-  cat("\n**Uwagi diagnostyczne:**\n\n")
+  cat(sprintf("\n**%s**\n\n", t("validation.diagnostic_notes")))
   for (warning_text in version_result$detection_warnings) {
     cat("-", warning_text, "\n")
   }
 }
 
 if (nrow(version_result$version_summary) > 0) {
-  cat("\n**Wykryte wersje testu:**\n\n")
-  print(fmt_table(version_result$version_summary))
+  cat(sprintf("\n**%s**\n\n", t("validation.detected_versions")))
+  show_table(version_result$version_summary)
   cat("\n")
 
-  # Ostrzezenie o odrzuconych osobach
+  # Warning about excluded persons
   n_unclassified <- length(version_result$unclassified_rows)
   if (n_unclassified > 0) {
     pct_lost <- round(n_unclassified / nrow(raw_data) * 100, 1)
     cat(sprintf(
-      "\n**UWAGA:** %d obserwacji (%s%%) nie zostalo przypisanych do zadnej wersji ",
-      n_unclassified, pct_lost
+      "\n**%s** %s\n\n",
+      t("common.warning_upper"),
+      sprintf(t("validation.unclassified_warning"), n_unclassified, pct_lost)
     ))
-    cat("i zostanie pominiete w analizach per wersja.\n\n")
   }
 } else {
-  cat("\nNie wykryto osobnych wersji testu.\n\n")
+  cat("\n", t("validation.no_versions"), "\n\n", sep = "")
 }
 ```
 
 ```{r prepare-analysis-data}
 # ============================================================================
-# PRZYGOTOWANIE DANYCH DO ANALIZ
+# DATA PREPARATION FOR ANALYSES
 # ============================================================================
 
 analysis_data <- raw_data
@@ -379,91 +374,91 @@ group_var <- params$group_var
 has_groups <- !is.null(group_var) && group_var %in% names(raw_data)
 
 if (has_groups) {
-  cat("### Zmienna grupujaca:", group_var, "\n\n")
+  cat("###", t("validation.grouping_variable"), group_var, "\n\n")
   group_table <- table(raw_data[[group_var]], useNA = "ifany")
-  cat("Rozklad grup:\n\n")
+  cat(t("validation.group_distribution"), "\n\n")
   for (i in seq_along(group_table)) {
-    cat("-", names(group_table)[i], ":", group_table[i], "obserwacji\n")
+    cat("-", names(group_table)[i], ":", group_table[i], t("validation.observations"), "\n")
   }
   cat("\n")
 }
 
 if (has_versions) {
-  cat("Analizy beda prowadzone oddzielnie dla wykrytych wersji testu.\n\n")
+  cat(t("validation.per_version_analyses"), "\n\n")
 } else {
-  cat("Jedna wersja testu lub brak potrzeby rozdzielania analiz wedlug wersji.\n\n")
+  cat(t("validation.single_version"), "\n\n")
 }
 ```
 
-# Klasyczna Teoria Testow (CTT) {.tabset}
+# `r t('ctt.section_title')` {.tabset}
 
-## Opis metody
+## `r t('ctt.method_description_title')`
 
-**Klasyczna Teoria Testow (CTT)** to podstawowe podejscie do analizy psychometrycznej. Oceniamy jakosc itemow i calego testu za pomoca nastepujacych wskaznikow:
+`r t('ctt.method_intro')`
 
-| Wskaznik | Opis | Kryterium |
-|--------------------------|------------------|----------------------------|
-| **Trudnosc (p)** | Odsetek poprawnych odpowiedzi | 0.20 - 0.80 (optymalne) |
-| **Moc roznicujaca (r.cor)** | Skorygowana korelacja item-test | \> 0.30 (dobra), \> 0.20 (akceptowalna) |
-| **r.drop** | Korelacja item-reszta (item-rest) | \> 0.20 |
-| **Alpha Cronbacha** | Rzetelnosc testu (spojnosc wewn.) | \> 0.70 (akceptowalna), \> 0.80 (dobra) |
-| **Omega McDonalda** | Rzetelnosc uwzgledniajaca strukture | \> 0.70 |
+| `r t('ctt.table.indicator')` | `r t('ctt.table.description')` | `r t('ctt.table.criterion')` |
+|--------------------------|-------------------|---------------------------|
+| **`r t('ctt.difficulty_label')`** | `r t('ctt.difficulty_description')` | `r t('ctt.difficulty_criterion')` |
+| **`r t('ctt.discrimination_label')`** | `r t('ctt.discrimination_description')` | `r t('ctt.discrimination_criterion')` |
+| **r.drop** | `r t('ctt.rdrop_description')` | \> 0.20 |
+| **`r t('ctt.alpha_label')`** | `r t('ctt.alpha_description')` | `r t('ctt.alpha_criterion')` |
+| **`r t('ctt.omega_label')`** | `r t('ctt.omega_description')` | \> 0.70 |
 
-**Sposob interpretacji:**
+**`r t('ctt.interpretation_title')`**
 
-- **Trudnosc (p):** Wartosc bliska 0 = item trudny (malo osob poprawnie), bliska 1 = latwy. Optymalne itemy maja p miedzy 0.20 a 0.80. Itemy skrajne (p \< 0.05 lub p \> 0.95) nie roznicuja badanych i powinny byc rozwazone do usuniecia.
-- **Moc roznicujaca (r.cor):** Informuje, jak dobrze item rozroznia miedzy osobami o wysokim i niskim wyniku. Wartosci ujemne lub bliskie 0 wskazuja na problem.
-- **Alpha Cronbacha:** Miara spojnosci wewnetrznej. Rosnie z liczba itemow i ich korelacja. Alpha \> 0.70 jest ogolnie akceptowalna.
+- **`r t('ctt.difficulty_label')`:** `r t('ctt.difficulty_interpretation')`
+- **`r t('ctt.discrimination_label')`:** `r t('ctt.discrimination_interpretation')`
+- **`r t('ctt.alpha_label')`:** `r t('ctt.alpha_interpretation')`
 
 ```{r ctt-analysis}
 # ============================================================================
-# ANALIZA CTT (silnik pakietu)
+# CTT ANALYSIS (package engine)
 # ============================================================================
 
-cat("## Wyniki CTT\n\n")
+cat("##", t("ctt.results_title"), "\n\n")
 
 render_ctt_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Nie przeprowadzono analizy CTT:**", result$status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("ctt.not_run"), result$status$message))
     return(invisible(NULL))
   }
 
   cat("### CTT:", result$label, "\n\n")
-  cat("- N osob:", result$n_persons, "\n")
-  cat("- N itemow:", result$n_items, "\n\n")
+  cat("-", t("common.n_persons"), result$n_persons, "\n")
+  cat("-", t("common.n_items"), result$n_items, "\n\n")
 
   if (length(result$zero_variance_items) > 0) {
-    cat("Wykluczono", length(result$zero_variance_items),
-        "itemow z zerowa wariancja:",
-        paste(result$zero_variance_items, collapse = ", "), "\n\n")
+    cat(sprintf(t("ctt.zero_variance_excluded"),
+                length(result$zero_variance_items),
+                paste(result$zero_variance_items, collapse = ", ")), "\n\n")
   }
 
-  cat("#### Rzetelnosc\n\n")
-  print(fmt_table(result$reliability))
+  cat("####", t("ctt.reliability_title"), "\n\n")
+  show_table(result$reliability)
   cat("\n")
 
-  cat("#### Statystyki itemow\n\n")
-  print(fmt_table(result$item_stats))
+  cat("####", t("ctt.item_stats_title"), "\n\n")
+  show_table(result$item_stats)
   cat("\n")
 
-  print(fmt_table(result$ocena_counts))
+  show_table(result$ocena_counts)
   cat("\n")
 
   n_bad <- sum(result$item_stats$r_cor < 0, na.rm = TRUE)
   n_weak <- sum(result$item_stats$r_cor >= 0 & result$item_stats$r_cor < 0.20, na.rm = TRUE)
   n_good <- sum(result$item_stats$r_cor >= 0.30, na.rm = TRUE)
 
-  cat("#### Interpretacja CTT\n\n")
-  cat(sprintf("- **Itemow z ujemna korelacja:** %d (do usuniecia)\n", n_bad))
-  cat(sprintf("- **Itemow slabych (r < 0.20):** %d (do rozwazenia)\n", n_weak))
-  cat(sprintf("- **Itemow dobrych (r >= 0.30):** %d z %d\n", n_good, nrow(result$item_stats)))
-  cat(sprintf("- **Alpha Cronbacha:** %.3f (%s)\n\n", result$alpha,
+  cat("####", t("ctt.interpretation_results_title"), "\n\n")
+  cat("-", sprintf(t("ctt.n_negative"), n_bad), "\n")
+  cat("-", sprintf(t("ctt.n_weak"), n_weak), "\n")
+  cat("-", sprintf(t("ctt.n_good"), n_good, nrow(result$item_stats)), "\n")
+  cat(sprintf("- **%s:** %.3f (%s)\n\n", t("ctt.alpha_label"), result$alpha,
               interpret_alpha(result$alpha)))
 
   if (n_bad > 0) {
-    cat("**Rekomendacja:** Nastepujace itemy maja ujemna korelacje z wynikiem calkowitym\n")
-    cat("i powinny zostac usuniete lub zrewidowane:\n\n")
+    cat(sprintf("**%s** %s\n\n", t("ctt.recommendation_label"),
+                t("ctt.negative_items_recommendation")))
     bad_items <- result$item_stats$Item[result$item_stats$r_cor < 0]
     for (bi in bad_items) cat("-", bi, "\n")
     cat("\n")
@@ -486,7 +481,7 @@ if (has_versions) {
 
     result <- run_ctt_for_items(
       v_data,
-      label = paste("Wersja", v),
+      label = paste(t("common.version"), v),
       item_max_scores = v_max
     )
     render_ctt_result(result)
@@ -495,7 +490,7 @@ if (has_versions) {
 } else {
   result <- run_ctt_for_items(
     items_data,
-    label = "Caly test",
+    label = t("common.whole_test"),
     item_max_scores = item_max_scores
   )
   render_ctt_result(result)
@@ -503,23 +498,23 @@ if (has_versions) {
 }
 ```
 
-## Sekwencyjna eliminacja itemow
+## `r t('ctt.elimination_section_title')`
 
 ```{r ctt-sequential}
 # ============================================================================
-# SEKWENCYJNA ELIMINACJA ITEMOW (silnik pakietu)
+# SEQUENTIAL ITEM ELIMINATION (package engine)
 # ============================================================================
 
-cat("### Sekwencyjna eliminacja slabych itemow\n\n")
-cat("Procedura eliminacji:\n\n")
-cat("1. **Krok 1:** Usun itemy z ujemna korelacja (r <= 0)\n")
-cat("2. **Krok 2:** Usun itemy z bardzo niska korelacja (r <= 0.10)\n")
-cat("3. **Krok 3:** Usun itemy z niska korelacja (r <= 0.15)\n\n")
+cat("###", t("ctt.elimination_title"), "\n\n")
+cat(t("ctt.elimination_procedure"), "\n\n")
+cat("1.", t("ctt.elimination_step_1"), "\n")
+cat("2.", t("ctt.elimination_step_2"), "\n")
+cat("3.", t("ctt.elimination_step_3"), "\n\n")
 
 render_elimination_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Nie przeprowadzono eliminacji:**", result$status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("ctt.elimination_not_run"), result$status$message))
     return(invisible(NULL))
   }
 
@@ -528,7 +523,7 @@ render_elimination_result <- function(result) {
   if (nrow(result$steps) > 0) {
     display_steps <- result$steps[, c("Krok", "N_itemow", "Alpha", "Usunieto")]
     display_steps$Usunieto[is.na(display_steps$Usunieto)] <- "-"
-    print(fmt_table(display_steps))
+    show_table(display_steps)
     cat("\n")
   }
 }
@@ -541,90 +536,90 @@ if (has_versions) {
     v_items <- version_items[[as.character(v)]]
     v_data <- items_data[v_rows, v_items, drop = FALSE]
 
-    result <- sequential_elimination(v_data, label = paste("Wersja", v))
+    result <- sequential_elimination(v_data, label = paste(t("common.version"), v))
     render_elimination_result(result)
     if (isTRUE(result$status$ok)) elimination_results[[as.character(v)]] <- result
   }
 } else {
-  result <- sequential_elimination(items_data, label = "Caly test")
+  result <- sequential_elimination(items_data, label = t("common.whole_test"))
   render_elimination_result(result)
   if (isTRUE(result$status$ok)) elimination_results[["all"]] <- result
 }
 ```
 
-# Teoria Odpowiedzi na Pozycje Testowe (IRT) {.tabset}
+# `r t('irt.section_title')` {.tabset}
 
-## Opis metody
+## `r t('irt.method_description_title')`
 
-**Teoria Odpowiedzi na Pozycje Testowe (IRT)** modeluje prawdopodobienstwo poprawnej odpowiedzi jako funkcje zdolnosci osoby (theta) i parametrow itemu.
+`r t('irt.method_intro')`
 
-### Modele binarne
+### `r t('irt.binary_models_title')`
 
-| Model | Parametry | Opis |
-|----------------------|--------------------------------|-------------------|
-| **1PL (Rasch)** | trudnosc (b) | Wszystkie itemy rownie dobrze roznicuja |
-| **2PL** | dyskryminacja (a), trudnosc (b) | Itemy moga roznic sie moca roznicujaca |
-| **3PL** | dyskryminacja (a), trudnosc (b), zgadywanie (g) | Model uwzglednia mozliwosc odgadniecia poprawnej odpowiedzi |
+| `r t('irt.table.model')` | `r t('irt.table.parameters')` | `r t('irt.table.description')` |
+|----------------------|-------------------------------|-------------------|
+| **1PL (Rasch)** | `r t('irt.1pl_parameters')` | `r t('irt.1pl_description')` |
+| **2PL** | `r t('irt.2pl_parameters')` | `r t('irt.2pl_description')` |
+| **3PL** | `r t('irt.3pl_parameters')` | `r t('irt.3pl_description')` |
 
-### Modele politomiczne
+### `r t('irt.polytomous_models_title')`
 
-| Model | Parametry | Opis |
-|----------------------|--------------------------------|-------------------|
-| **Rasch-PCM** | progi trudnosci (b1, b2, ...) | Partial Credit Model z rowna dyskryminacja |
-| **2PL-GPCM** | dyskryminacja (a), progi (b1, b2, ...) | Generalized Partial Credit Model z wolna dyskryminacja |
+| `r t('irt.table.model')` | `r t('irt.table.parameters')` | `r t('irt.table.description')` |
+|----------------------|-------------------------------|-------------------|
+| **Rasch-PCM** | `r t('irt.pcm_parameters')` | `r t('irt.pcm_description')` |
+| **2PL-GPCM** | `r t('irt.gpcm_parameters')` | `r t('irt.gpcm_description')` |
 
-### Parametry itemow (IRT)
+### `r t('irt.item_parameters_title')`
 
-| Parametr | Symbol | Opis | Zakres typowy |
-|------------------|------------------|------------------|--------------------|
-| Dyskryminacja | a | Jak stromo rosnie krzywa ICC | 0.5 - 2.5 (optymalnie) |
-| Trudnosc | b | Poziom theta, przy ktorym P = 0.50 | -3 do +3 |
-| Zgadywanie | g | Dolna asymptota ICC | 0.00 - 0.35 |
-| Progi | b1, b2, ... | Punkty przejscia miedzy kategoriami | -3 do +3 |
+| `r t('irt.table.parameter')` | `r t('irt.table.symbol')` | `r t('irt.table.description')` | `r t('irt.table.typical_range')` |
+|------------------|------------------|------------------|-------------------|
+| `r t('irt.discrimination')` | a | `r t('irt.discrimination_description')` | `r t('irt.discrimination_range')` |
+| `r t('irt.difficulty')` | b | `r t('irt.difficulty_description')` | `r t('irt.theta_range')` |
+| `r t('irt.guessing')` | g | `r t('irt.guessing_description')` | 0.00 - 0.35 |
+| `r t('irt.thresholds')` | b1, b2, ... | `r t('irt.thresholds_description')` | `r t('irt.theta_range')` |
 
-### Porownanie modeli
+### `r t('irt.model_comparison_title')`
 
-Porownanie modeli wykonujemy testem ilorazu wiarogodnosci (LRT). Jesli bardziej zlozony model jest istotnie lepszy (p \< 0.05), wybieramy go. Dodatkowo porownujemy AIC i BIC - nizsze wartosci wskazuja lepszy model.
+`r t('irt.model_comparison_text')`
 
 ```{r irt-analysis}
 # ============================================================================
-# ANALIZA IRT (silnik pakietu)
+# IRT ANALYSIS (package engine)
 # ============================================================================
 
-cat("## Wyniki IRT\n\n")
+cat("##", t("irt.results_title"), "\n\n")
 
 render_irt_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Nie przeprowadzono analizy IRT:**", result$status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("irt.not_run"), result$status$message))
     return(invisible(NULL))
   }
 
   cat("### IRT:", result$label, "\n\n")
-  cat("- N osob:", result$n_persons, "\n")
-  cat("- N itemow:", result$n_items, "\n")
-  cat("- Typ itemow:", result$item_type, "\n\n")
+  cat("-", t("common.n_persons"), result$n_persons, "\n")
+  cat("-", t("common.n_items"), result$n_items, "\n")
+  cat("-", t("common.item_type_label"), t(paste0("common.item_type.", result$item_type)), "\n\n")
 
-  # --- Porownanie modeli ---
-  cat("#### Porownanie modeli\n\n")
+  # --- Model comparison ---
+  cat("####", t("irt.model_comparison_title"), "\n\n")
 
   if (!is.null(result$comparison_df)) {
     display_comp <- result$comparison_df[, c("Model", "AIC", "BIC", "LogLik", "df", "selected")]
-    print(fmt_table(display_comp))
+    show_table(display_comp)
     cat("\n")
   }
 
   # --- LRT ---
   if (!is.null(result$lrt) && nrow(result$lrt) > 0) {
-    cat("#### Test ilorazu wiarogodnosci (LRT)\n\n")
-    print(fmt_table(result$lrt))
+    cat("####", t("irt.lrt_title"), "\n\n")
+    show_table(result$lrt)
     cat("\n")
   }
 
-  cat("**Wybrany model:**", result$preferred_name, "\n\n")
+  cat(sprintf("**%s** %s\n\n", t("irt.selected_model"), result$preferred_name))
 
-  # --- Parametry itemow ---
-  cat("#### Parametry itemow IRT\n\n")
+  # --- Item parameters ---
+  cat("####", t("irt.item_parameters_results_title"), "\n\n")
 
   model_names <- c()
   params_list <- list()
@@ -644,58 +639,61 @@ render_irt_result <- function(result) {
 
   for (idx in seq_along(params_list)) {
     cat("##### Model", model_names[idx], "\n\n")
-    print(fmt_table(params_list[[idx]]))
+    show_table(params_list[[idx]])
     cat("\n")
   }
 
-  cat("**Do dalszych wykresow i analiz uzyto modelu:**", result$preferred_name, "\n\n")
+  cat(sprintf("**%s** %s\n\n", t("irt.model_used"), result$preferred_name))
 
-  # --- Interpretacja parametrow ---
-  cat("**Interpretacja parametrow IRT:**\n\n")
-  cat("- **Dyskryminacja (a):** Im wieksza, tym lepiej item rozroznia osoby o roznych zdolnosciach.\n")
-  cat("  - a < 0.50: item slabo roznicuje\n")
-  cat("  - a = 0.50-1.50: umiarkowana do dobrej dyskryminacji\n")
-  cat("  - a > 1.50: bardzo dobra dyskryminacja\n")
-  cat("  - a < 0: item odwrotnie skorelowany z cecha - powazny problem\n\n")
+  # --- Parameter interpretation ---
+  cat(sprintf("**%s**\n\n", t("irt.parameters_interpretation_title")))
+  cat(sprintf("- **%s (a):** %s\n", t("irt.discrimination"), t("irt.discrimination_interpretation")))
+  cat("  -", t("irt.discrimination_rule_1"), "\n")
+  cat("  -", t("irt.discrimination_rule_2"), "\n")
+  cat("  -", t("irt.discrimination_rule_3"), "\n")
+  cat("  -", t("irt.discrimination_rule_4"), "\n\n")
 
-  cat("- **Trudnosc (b):** Punkt na skali theta, gdzie prawdopodobienstwo poprawnej odpowiedzi wynosi ok. 0.50.\n")
-  cat("  - b < -2: item bardzo latwy\n")
-  cat("  - b = -1 do +1: umiarkowana trudnosc\n")
-  cat("  - b > +2: item bardzo trudny\n\n")
+  cat(sprintf("- **%s (b):** %s\n", t("irt.difficulty"), t("irt.difficulty_interpretation")))
+  cat("  -", t("irt.difficulty_rule_1"), "\n")
+  cat("  -", t("irt.difficulty_rule_2"), "\n")
+  cat("  -", t("irt.difficulty_rule_3"), "\n\n")
 
   if (result$item_type %in% c("polytomous", "mixed")) {
-    cat("- **Progi (b1, b2, ...):** Punkty na skali theta, gdzie prawdopodobienstwo przejscia do wyzszej kategorii wynosi 0.50.\n\n")
+    cat(sprintf("- **%s (b1, b2, ...):** %s\n\n", t("irt.thresholds"), t("irt.thresholds_interpretation")))
   }
 
-  # --- Wykresy IRT ---
-  cat("#### Wykresy IRT dla wybranego modelu:", result$preferred_name, "\n\n")
+  # --- IRT plots ---
+  cat("####", t("irt.plots_title"), result$preferred_name, "\n\n")
 
   if (!is.null(result$plots)) {
-    if (!is.null(result$plots$tif)) {
-      cat("##### Funkcja informacyjna testu (TIF)\n\n")
-      print(result$plots$tif)
+    if (!is.null(result$plots$test_information)) {
+      cat("#####", t("irt.tif_title"), "\n\n")
+      print(result$plots$test_information)
       cat("\n\n")
     }
 
-    if (!is.null(result$plots$icc)) {
-      cat("##### Krzywe charakterystyczne itemow (ICC)\n\n")
-      for (p in result$plots$icc) {
+    if (length(result$plots$item_traces) > 0) {
+      cat("#####", t("irt.icc_title"), "\n\n")
+      for (p in result$plots$item_traces) {
         print(p)
       }
       cat("\n\n")
     }
 
     if (!is.null(result$plots$empirical_icc)) {
-      cat("##### Empiryczne dopasowanie ICC do danych\n\n")
-      for (p in result$plots$empirical_icc) {
+      cat("#####", t("irt.empirical_icc_title"), "\n\n")
+      # The engine returns a single ggplot or a list of plots
+      emp_icc <- result$plots$empirical_icc
+      if (inherits(emp_icc, "ggplot")) emp_icc <- list(emp_icc)
+      for (p in emp_icc) {
         print(p)
       }
       cat("\n\n")
     }
 
-    if (!is.null(result$plots$theta_dist)) {
-      cat("##### Rozklad zdolnosci osob (theta)\n\n")
-      print(result$plots$theta_dist)
+    if (!is.null(result$plots$theta_histogram)) {
+      cat("#####", t("irt.theta_dist_title"), "\n\n")
+      print(result$plots$theta_histogram)
       cat("\n\n")
     }
   }
@@ -706,7 +704,7 @@ irt_unified <- has_versions && isTRUE(params$unified_irt)
 
 if (irt_unified) {
 
-  # Wspolna kalibracja IRT: pelna macierz z brakami (FIML)
+  # Joint IRT calibration: full matrix with missing data (FIML)
   all_remaining <- unique(unlist(
     lapply(elimination_results, `[[`, "remaining_items")
   ))
@@ -716,14 +714,13 @@ if (irt_unified) {
 
   n_persons_unified <- sum(rowSums(!is.na(items_data[, all_remaining, drop = FALSE])) > 0)
 
-  cat("**Wspolna kalibracja IRT** na pelnej macierzy danych\n")
-  cat("(wszystkie wersje, braki strukturalne obslugiwane przez FIML).\n\n")
-  cat("- Itemow:", length(all_remaining), "\n")
-  cat("- Osob:", n_persons_unified, "\n\n")
+  cat(t("irt.unified_calibration_text"), "\n\n")
+  cat("-", t("irt.n_items_short"), length(all_remaining), "\n")
+  cat("-", t("irt.n_persons_short"), n_persons_unified, "\n\n")
 
   result <- run_irt_for_items(
     items_data[, all_remaining, drop = FALSE],
-    label = "Wspolna kalibracja",
+    label = t("irt.unified_calibration_label"),
     item_type = item_type,
     item_max_scores = unified_max
   )
@@ -750,7 +747,7 @@ if (irt_unified) {
 
     result <- run_irt_for_items(
       v_data,
-      label = paste("Wersja", v),
+      label = paste(t("common.version"), v),
       item_type = item_type,
       item_max_scores = v_max
     )
@@ -773,7 +770,7 @@ if (irt_unified) {
 
   result <- run_irt_for_items(
     clean_data,
-    label = "Caly test",
+    label = t("common.whole_test"),
     item_type = item_type,
     item_max_scores = clean_max
   )
@@ -783,100 +780,105 @@ if (irt_unified) {
 }
 ```
 
-# Dopasowanie itemow (Item Fit) {.tabset}
+# `r t('item_fit.section_title')` {.tabset}
 
-## Opis metody
+## `r t('item_fit.method_description_title')`
 
-**Dopasowanie itemow** (item fit) sprawdza, czy poszczegolne itemy sa dobrze opisywane przez wybrany model IRT. Item ze zlym dopasowaniem zachowuje sie nieprzewidywalnie.
+`r t('item_fit.method_intro_1')`
 
-### Statystyki dopasowania
+### `r t('item_fit.fit_statistics_title')`
 
-| Statystyka | Opis | Kryterium |
-|----------------------------|------------------|--------------------------|
-| **PV-Q1**\* | Statystyka Chalmers & Ng (2017) - bootstrap | p \> 0.05 = dobre dopasowanie |
-| **Infit MNSQ** | Srednia kwadratow reszt wazona informacja | 0.70 - 1.30 (akceptowalne) |
-| **Outfit MNSQ** | Srednia kwadratow reszt niewazona | 0.70 - 1.30 (akceptowalne) |
-| **S-X2** | Statystyka Orlando-Thissen | p \> 0.05 = dobre dopasowanie |
+| `r t('item_fit.table.statistic')` | `r t('item_fit.table.description')` | `r t('item_fit.table.criterion')` |
+|---------------------------|-------------------|--------------------------|
+| **PV-Q1**\* | `r t('item_fit.pvq1_description')` | `r t('item_fit.pvq1_criterion')` |
+| **Infit MNSQ** | `r t('item_fit.infit_description')` | `r t('item_fit.infit_criterion')` |
+| **Outfit MNSQ** | `r t('item_fit.outfit_description')` | `r t('item_fit.outfit_criterion')` |
+| **S-X2** | `r t('item_fit.sx2_description')` | `r t('item_fit.sx2_criterion')` |
 
-### Sposob interpretacji
+### `r t('item_fit.interpretation_title')`
 
-- **PV-Q1\***: Preferowana metoda (Chalmers & Ng, 2017). Uzywa parametrycznego bootstrapu. Wartosc p \> 0.05 oznacza, ze model dobrze opisuje dany item.
-- **Infit MNSQ**: Wrazliwy na niedopasowanie w zakresie sredniej zdolnosci (tam gdzie jest najwiecej danych). Wartosci \> 1.30 oznaczaja niedopasowanie.
-- **Outfit MNSQ**: Wrazliwy na niedopasowanie w skrajnych wartosciach theta. Bardziej podatny na wartosci odstajace.
-- **S-X2**: Klasyczna metoda Orlando-Thissen. Mniej dokladna niz PV-Q1\* przy malych probach.
+- **PV-Q1\***: `r t('item_fit.pvq1_interpretation')`
+- **Infit MNSQ**: `r t('item_fit.infit_interpretation')`
+- **Outfit MNSQ**: `r t('item_fit.outfit_interpretation')`
+- **S-X2**: `r t('item_fit.sx2_interpretation')`
 
 ```{r item-fit}
 # ============================================================================
-# ITEM FIT (silnik pakietu)
+# ITEM FIT (package engine)
 # ============================================================================
 
-cat("## Wyniki Item Fit\n\n")
+cat("##", t("item_fit.results_title"), "\n\n")
 
 render_item_fit_result <- function(result) {
 
   if (!isTRUE(result$status$ok)) {
-    cat("**Nie przeprowadzono analizy item fit:**", result$status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("item_fit.not_run"), result$status$message))
     return(invisible(NULL))
   }
 
-  cat("### Item Fit:", result$label, "\n\n")
+  cat(sprintf("### %s: %s\n\n", t("item_fit.result_subsection"), result$label))
 
   # S-X2
   if (isTRUE(result$sx2_status$ok) && !is.null(result$sx2_df)) {
-    cat("#### Statystyka S-X2 (Orlando-Thissen)\n\n")
-    print(fmt_table(result$sx2_df))
+    cat("####", t("item_fit.sx2_title"), "\n\n")
+    if ("Wersja" %in% names(result$sx2_df)) {
+      cat(t("item_fit.sx2_by_version_note"), "\n\n")
+    }
+    if (identical(result$sx2_status$code, "sx2_partial")) {
+      cat(sprintf("**%s** %s\n\n", t("common.warning"), result$sx2_status$message))
+    }
+    show_table(result$sx2_df)
     cat("\n")
 
     n_misfit <- sum(result$sx2_df$p < 0.05, na.rm = TRUE)
-    cat(sprintf("**Podsumowanie S-X2:** %d z %d itemow wykazuje niedopasowanie (p < 0.05).\n\n",
-                n_misfit, nrow(result$sx2_df)))
+    cat(sprintf(t("item_fit.sx2_summary"),
+                n_misfit, nrow(result$sx2_df)), "\n\n")
 
     if ("RMSEA" %in% names(result$sx2_df)) {
       n_rmsea_bad <- sum(result$sx2_df$RMSEA > 0.05, na.rm = TRUE)
-      cat(sprintf("**RMSEA:** %d z %d itemow z RMSEA > 0.05\n\n",
-                  n_rmsea_bad, sum(!is.na(result$sx2_df$RMSEA))))
+      cat(sprintf(t("item_fit.rmsea_summary"),
+                  n_rmsea_bad, sum(!is.na(result$sx2_df$RMSEA))), "\n\n")
     }
-                n_misfit, nrow(result$sx2_df)))
   } else if (!is.null(result$sx2_status$message)) {
     cat("#### S-X2\n\n")
-    cat("**Uwaga:**", result$sx2_status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("common.warning"), result$sx2_status$message))
   }
 
   # Infit / Outfit
   if (isTRUE(result$infit_status$ok) && !is.null(result$infit_df)) {
-    cat("#### Statystyki Infit i Outfit\n\n")
-    print(fmt_table(result$infit_df))
+    cat("####", t("item_fit.infit_outfit_title"), "\n\n")
+    show_table(result$infit_df)
     cat("\n")
 
     n_infit_bad <- sum(result$infit_df$Infit_MNSQ > 1.30 | result$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
     n_outfit_bad <- sum(result$infit_df$Outfit_MNSQ > 1.30 | result$infit_df$Outfit_MNSQ < 0.70, na.rm = TRUE)
 
-    cat(sprintf("**Podsumowanie Infit:** %d z %d itemow poza zakresem 0.70-1.30\n",
-                n_infit_bad, nrow(result$infit_df)))
-    cat(sprintf("**Podsumowanie Outfit:** %d z %d itemow poza zakresem 0.70-1.30\n\n",
-                n_outfit_bad, nrow(result$infit_df)))
+    cat(sprintf(t("item_fit.infit_summary"),
+                n_infit_bad, nrow(result$infit_df)), "\n")
+    cat(sprintf(t("item_fit.outfit_summary"),
+                n_outfit_bad, nrow(result$infit_df)), "\n\n")
   } else if (!is.null(result$infit_status) && !isTRUE(result$infit_status$ok)) {
     cat("#### Infit / Outfit\n\n")
-    cat("**Uwaga:**", result$infit_status$message, "\n\n")
+    cat(sprintf("**%s** %s\n\n", t("common.warning"), result$infit_status$message))
   }
 
-  # Wykres zbiorczy
+  # Summary plot
   if (!is.null(result$plots$fit_map)) {
-    cat("#### Wykres zbiorczy item fit\n\n")
+    cat("####", t("item_fit.fit_map_title"), "\n\n")
     print(result$plots$fit_map)
     cat("\n\n")
   }
 
-  cat("**Interpretacja ogolna item fit:**\n\n")
-  cat("- **RMSEA < 0.05:** dobre dopasowanie; **0.05-0.10:** akceptowalne; **> 0.10:** slabe\n")
-  cat("- **Infit/Outfit 0.70-1.30:** akceptowalne dopasowanie\n")
-  cat("- **S-X2 p > 0.05:** model dobrze opisuje item\n\n")
+  cat(sprintf("**%s**\n\n", t("item_fit.general_interpretation_title")))
+  cat("-", t("item_fit.rmsea_interpretation_rule"), "\n")
+  cat("-", t("item_fit.infit_outfit_interpretation_rule"), "\n")
+  cat("-", t("item_fit.sx2_interpretation_rule"), "\n\n")
 
   if (!is.null(result$model_name)) {
     if (grepl("1PL|Rasch", result$model_name)) {
-      cat("*Model Rascha/1PL: statystyki infit i outfit sa glownymi miarami dopasowania.*\n\n")
+      cat(sprintf("*%s*\n\n", t("item_fit.rasch_note")))
     } else {
-      cat("*Model 2PL+: RMSEA i S-X2 sa rekomendowanymi miarami dopasowania.*\n\n")
+      cat(sprintf("*%s*\n\n", t("item_fit.2pl_note")))
     }
   }
 
@@ -890,40 +892,45 @@ render_item_fit_result <- function(result) {
 fit_results <- list()
 
 for (name in names(irt_results)) {
-  label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
-  result <- run_item_fit(irt_results[[name]], label = label)
+  label <- ifelse(name == "all", t("common.whole_test"), paste(t("common.version"), name))
+  by_version <- name == "all" && irt_unified
+  result <- run_item_fit(
+    irt_results[[name]],
+    label = label,
+    versions = if (by_version) raw_data[[detected_version_col]],
+    version_items = if (by_version) version_items
+  )
   render_item_fit_result(result)
   if (isTRUE(result$status$ok)) fit_results[[name]] <- result
 }
 ```
 
-# Roznicowe Funkcjonowanie Itemow (DIF) {.tabset}
+# `r t('dif.section_title')` {.tabset}
 
-## Opis metody
+## `r t('dif.method_description_title')`
 
-**DIF (Differential Item Functioning)** sprawdza, czy itemy testowe dzialaja jednakowo w roznych grupach (np. plec, grupa eksperymentalna vs kontrolna).
+`r t('dif.method_intro')`
 
-**Czym jest DIF?** Item wykazuje DIF, jesli osoby z roznych grup o tym samym poziomie zdolnosci (theta) maja rozne prawdopodobienstwo poprawnej odpowiedzi. DIF oznacza, ze item jest "nieuczciwy" (biased) - faworyzuje jedna grupe.
+**`r t('dif.definition_title')`** `r t('dif.definition_text')`
 
-### Metoda
+### `r t('dif.method_title')`
 
-Dla itemow binarnych stosujemy regresje logistyczna (Swaminathan & Rogers, 1990) z pakietu sirt.
-Dla itemow politomicznych i mieszanych stosujemy modelowy DIF w mirt (constrained baseline).
+`r t('dif.binary_method')` `r t('dif.polytomous_method')`
 
-### Klasyfikacja ETS (itemy binarne)
+### `r t('dif.ets_classification_title')`
 
-| Kategoria | Kryterium                 | Interpretacja                 |
+| `r t('dif.table.category')` | `r t('dif.table.criterion')` | `r t('dif.table.interpretation')` |
 |-----------|---------------------------|-------------------------------|
-| **A**     | abs(delta) \< 1.0         | Pomijalne DIF - item OK       |
-| **B**     | 1.0 \<= abs(delta) \< 1.5 | Umiarkowane DIF - monitorowac |
-| **C**     | abs(delta) \>= 1.5        | Duze DIF - rozwazyc usuniecie |
+| **A**     | abs(delta) \< 1.0         | `r t('dif.ets_a_interpretation')` |
+| **B**     | 1.0 \<= abs(delta) \< 1.5 | `r t('dif.ets_b_interpretation')` |
+| **C**     | abs(delta) \>= 1.5        | `r t('dif.ets_c_interpretation')` |
 
 ```{r dif-analysis}
 # ============================================================================
-# ANALIZA DIF (silnik pakietu)
+# DIF ANALYSIS (package engine)
 # ============================================================================
 
-cat("## Wyniki DIF\n\n")
+cat("##", t("dif.results_title"), "\n\n")
 
 dif_all <- run_dif_analysis(
   raw_data = raw_data,
@@ -937,11 +944,11 @@ dif_all <- run_dif_analysis(
 )
 
 if (!isTRUE(dif_all$status$ok)) {
-  cat("**Nie przeprowadzono analizy DIF:**", dif_all$status$message, "\n\n")
+  cat(sprintf("**%s** %s\n\n", t("dif.not_run"), dif_all$status$message))
 } else {
 
-  cat("**Zmienna grupujaca DIF:**", dif_all$dif_group_var, "\n")
-  cat("**Grupy:**", paste(dif_all$groups, collapse = " vs "), "\n\n")
+  cat(sprintf("**%s** %s\n", t("dif.grouping_variable"), dif_all$dif_group_var))
+  cat(sprintf("**%s** %s\n\n", t("dif.groups"), paste(dif_all$groups, collapse = " vs ")))
 
   dif_results <- dif_all$results
 
@@ -950,109 +957,122 @@ if (!isTRUE(dif_all$status$ok)) {
 
     if (!isTRUE(r$status$ok)) {
       cat("####", r$label, "\n\n")
-      cat("**Nie przeprowadzono analizy DIF:**", r$status$message, "\n\n")
+      cat(sprintf("**%s** %s\n\n", t("dif.not_run"), r$status$message))
       next
     }
 
     cat("####", r$label, "\n\n")
-    cat("- Grupa referencyjna:", r$group_ref, "(n =", r$n_ref, ")\n")
-    cat("- Grupa fokalna:", r$group_focal, "(n =", r$n_focal, ")\n")
-    cat("- Metoda:", r$method, "\n")
-    cat("- Itemy:", r$n_items, "\n\n")
+    cat(sprintf("- %s %s (n = %s)\n", t("dif.reference_group"), r$group_ref, r$n_ref))
+    cat(sprintf("- %s %s (n = %s)\n", t("dif.focal_group"), r$group_focal, r$n_focal))
+    cat("-", t("dif.method_label"), t(paste0("dif.method.", r$method)), "\n")
+    if (!is.null(r$dif_model)) {
+      cat("-", t("dif.model_label"), r$dif_model, "\n")
+    }
+    cat("-", t("dif.items_label"), r$n_items, "\n\n")
 
-    # Tabela wynikow DIF
+    # DIF results table
     if (!is.null(r$dif_df) && nrow(r$dif_df) > 0) {
-      print(fmt_table(r$dif_df))
+      show_table(r$dif_df)
       cat("\n")
 
-      # Podsumowanie: binarne (ETS) vs politomiczne (p_holm)
+      # Summary: binary (ETS) vs polytomous (p_holm)
       if ("ETS" %in% names(r$dif_df)) {
         n_a <- sum(grepl("^A", r$dif_df$ETS), na.rm = TRUE)
         n_b <- sum(grepl("^B", r$dif_df$ETS), na.rm = TRUE)
         n_c <- sum(grepl("^C", r$dif_df$ETS), na.rm = TRUE)
 
-        cat(sprintf("**Podsumowanie ETS:** A = %d, B = %d, C = %d (z %d itemow)\n\n",
-                    n_a, n_b, n_c, nrow(r$dif_df)))
+        cat(sprintf(t("dif.ets_summary"),
+                    n_a, n_b, n_c, nrow(r$dif_df)), "\n\n")
 
         if (n_c > 0) {
-          cat("**UWAGA:** Nastepujace itemy wykazuja duze DIF (kategoria C):\n\n")
+          cat(sprintf("**%s** %s\n\n", t("common.warning_upper"), t("dif.large_dif_warning")))
           c_items <- r$dif_df$Item[grepl("^C", r$dif_df$ETS)]
           for (ci in c_items) {
             pdiff <- r$dif_df$pdiff_adj[r$dif_df$Item == ci]
             direction <- ifelse(pdiff > 0,
-                                paste("latwiejszy dla grupy", r$group_focal),
-                                paste("latwiejszy dla grupy", r$group_ref))
+                                paste(t("dif.easier_for_group"), r$group_focal),
+                                paste(t("dif.easier_for_group"), r$group_ref))
             cat(sprintf("- **%s** (pdiff = %.3f): %s\n", ci, pdiff, direction))
           }
           cat("\n")
         }
       } else if ("p_holm" %in% names(r$dif_df)) {
         n_sig <- sum(r$dif_df$p_holm < 0.05, na.rm = TRUE)
-        cat(sprintf("**Podsumowanie:** %d z %d itemow z istotnym DIF (p Holm < 0.05)\n\n",
-                    n_sig, nrow(r$dif_df)))
+        cat(sprintf(t("dif.significant_summary"),
+                    n_sig, nrow(r$dif_df)), "\n\n")
       }
     }
 
-    # Wykres
+    # Convergence warnings (mirt path)
+    if (isFALSE(r$base_converged)) {
+      cat(sprintf("**%s** %s\n\n", t("common.warning_upper"),
+                  t("dif.base_not_converged_warning")))
+    }
+    if (length(r$items_not_converged) > 0) {
+      cat(sprintf("**%s** %s %s\n\n", t("common.warning_upper"),
+                  t("dif.items_not_converged_warning"),
+                  paste(r$items_not_converged, collapse = ", ")))
+    }
+
+    # Plot
     if (!is.null(r$plots$dif)) {
       print(r$plots$dif)
       cat("\n\n")
     }
   }
 
-  # Podsumowanie DIF
+  # DIF summary
   if (length(dif_results) > 0) {
-    cat("### Podsumowanie DIF\n\n")
-    cat("**Interpretacja ogolna:**\n\n")
-    cat("- Jesli wiekszosc itemow ma klasyfikacje **A** lub p Holm > 0.05, test jest sprawiedliwy\n")
-    cat("  dla porownywanych grup.\n")
-    cat("- Itemy z klasyfikacja **B** lub umiarkowanym DIF wymagaja monitorowania.\n")
-    cat("- Itemy z klasyfikacja **C** lub bardzo istotnym DIF powinny byc zbadane merytoryczne.\n\n")
+    cat("###", t("dif.summary_title"), "\n\n")
+    cat(sprintf("**%s**\n\n", t("dif.general_interpretation_title")))
+    cat("-", t("dif.fair_interpretation"), "\n")
+    cat("-", t("dif.monitor_interpretation"), "\n")
+    cat("-", t("dif.review_interpretation"), "\n\n")
   }
 }
 ```
 
-# Podsumowanie i rekomendacje
+# `r t('summary.section_title')`
 
 ```{r summary}
 # ============================================================================
-# PODSUMOWANIE
+# SUMMARY
 # ============================================================================
 
-cat("## Ogolne podsumowanie analiz\n\n")
+cat("##", t("summary.overall_title"), "\n\n")
 
 # CTT summary
-cat("### Klasyczna Teoria Testow (CTT)\n\n")
+cat("###", t("summary.ctt_title"), "\n\n")
 
 for (name in names(ctt_results)) {
   r <- ctt_results[[name]]
-  label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
+  label <- ifelse(name == "all", t("common.whole_test"), paste(t("common.version"), name))
 
   cat(sprintf(
-    "- **%s:** Alpha = %.3f, Omega = %.3f, N itemow = %d\n",
+    t("summary.ctt_line"),
     label,
     r$alpha,
     ifelse(is.na(r$omega), NA, r$omega),
     nrow(r$item_stats)
-  ))
+  ), "\n", sep = "")
 }
 
 cat("\n")
 
 # IRT summary
-cat("### Teoria Odpowiedzi na Pozycje Testowe (IRT)\n\n")
+cat("###", t("summary.irt_title"), "\n\n")
 
 for (name in names(irt_results)) {
   r <- irt_results[[name]]
-  label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
+  label <- ifelse(name == "all", t("common.whole_test"), paste(t("common.version"), name))
 
   cat(sprintf(
-    "- **%s:** Wybrany model: %s, Typ itemow: %s, N itemow = %d\n",
+    t("summary.irt_line"),
     label,
     r$preferred_name,
-    r$item_type,
+    t(paste0("common.item_type.", r$item_type)),
     ncol(r$data_items)
-  ))
+  ), "\n", sep = "")
 
   params_df <- switch(
     r$preferred_name,
@@ -1068,7 +1088,7 @@ for (name in names(irt_results)) {
     if ("a_dyskryminacja" %in% names(params_df) &&
         any(!is.na(params_df$a_dyskryminacja))) {
       a_range <- range(params_df$a_dyskryminacja, na.rm = TRUE)
-      cat(sprintf("  - Dyskryminacja (a): %.2f - %.2f\n", a_range[1], a_range[2]))
+      cat(sprintf(t("summary.discrimination_range"), a_range[1], a_range[2]), "\n", sep = "")
     }
 
     b_cols <- grep("^b[0-9]*$|^b_trudnosc$|^b$", names(params_df), value = TRUE)
@@ -1077,7 +1097,7 @@ for (name in names(irt_results)) {
       all_b <- all_b[!is.na(all_b)]
       if (length(all_b) > 0) {
         b_range <- range(all_b)
-        cat(sprintf("  - Trudnosc/progi (b): %.2f - %.2f\n", b_range[1], b_range[2]))
+        cat(sprintf(t("summary.difficulty_range"), b_range[1], b_range[2]), "\n", sep = "")
       }
     }
   }
@@ -1087,22 +1107,20 @@ cat("\n")
 
 # Item Fit summary
 if (length(fit_results) > 0) {
-  cat("### Dopasowanie itemow (Item Fit)\n\n")
+  cat("###", t("summary.item_fit_title"), "\n\n")
 
   for (name in names(fit_results)) {
     r <- fit_results[[name]]
-    label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
+    label <- ifelse(name == "all", t("common.whole_test"), paste(t("common.version"), name))
 
     if (!is.null(r$sx2_df)) {
       n_misfit <- sum(r$sx2_df$p < 0.05, na.rm = TRUE)
-      cat(sprintf("- **%s (S-X2):** %d/%d itemow z niedopasowaniem\n",
-                  label, n_misfit, nrow(r$sx2_df)))
+      cat(sprintf(t("summary.sx2_line"), label, n_misfit, nrow(r$sx2_df)), "\n", sep = "")
     }
 
     if (!is.null(r$infit_df)) {
       n_infit_bad <- sum(r$infit_df$Infit_MNSQ > 1.30 | r$infit_df$Infit_MNSQ < 0.70, na.rm = TRUE)
-      cat(sprintf("- **%s (Infit):** %d/%d itemow poza zakresem\n",
-                  label, n_infit_bad, nrow(r$infit_df)))
+      cat(sprintf(t("summary.infit_line"), label, n_infit_bad, nrow(r$infit_df)), "\n", sep = "")
     }
   }
 
@@ -1111,59 +1129,51 @@ if (length(fit_results) > 0) {
 
 # Elimination summary
 if (length(elimination_results) > 0) {
-  cat("### Eliminacja itemow\n\n")
+  cat("###", t("summary.elimination_title"), "\n\n")
 
   for (name in names(elimination_results)) {
     r <- elimination_results[[name]]
-    label <- ifelse(name == "all", "Caly test", paste("Wersja", name))
+    label <- ifelse(name == "all", t("common.whole_test"), paste(t("common.version"), name))
 
     cat(sprintf(
-      "- **%s:** Usunieto %d itemow, pozostalo %d\n",
+      t("summary.elimination_line"),
       label,
       length(r$removed_items),
       length(r$remaining_items)
-    ))
+    ), "\n", sep = "")
 
     if (length(r$removed_items) > 0) {
       cat(sprintf(
-        "  - Usuniete: %s\n",
+        t("summary.removed_items"),
         paste(r$removed_items, collapse = ", ")
-      ))
+      ), "\n", sep = "")
     }
   }
 
   cat("\n")
 }
 
-cat("### Zalecenia\n\n")
-cat("1. **Przejrzyj itemy z niska dyskryminacja** (a < 0.50 lub r.cor < 0.20) -\n")
-cat("   rozwazyc rewizje lub usuniecie.\n")
-cat("2. **Sprawdz itemy z niedopasowaniem** (S-X2 p < 0.05 lub infit > 1.30) -\n")
-cat("   przeanalizuj ICC w poszukiwaniu wzorcow niedopasowania.\n")
-cat("3. **Sprawdz itemy z wysokim parametrem zgadywania** (g > 0.25, szczegolnie g > 0.35) -\n")
-cat("   moga wskazywac na slabe dystraktory lub mozliwosc odgadniecia odpowiedzi.\n")
-cat("4. **Itemy z DIF kategorii C** lub istotnym DIF powinny byc zrewidowane pod katem tresci.\n")
-cat("5. **Rzetelnosc** - jesli alpha < 0.70, rozwazyc dodanie itemow lub\n")
-cat("   rewizje istniejacych.\n")
-cat("6. **Funkcja informacyjna testu** - sprawdz, czy test dobrze mierzy\n")
-cat("   w zakresie theta istotnym dla celu pomiaru.\n\n")
+cat("###", t("summary.recommendations_title"), "\n\n")
+
+# *_detail tokens are list-item continuation lines (indented in the translation)
+recommendation_tokens <- c(
+  "summary.recommendation_1", "summary.recommendation_1_detail",
+  "summary.recommendation_2", "summary.recommendation_2_detail",
+  "summary.recommendation_3", "summary.recommendation_3_detail",
+  "summary.recommendation_4",
+  "summary.recommendation_5", "summary.recommendation_5_detail",
+  "summary.recommendation_6", "summary.recommendation_6_detail"
+)
+cat(t(recommendation_tokens), sep = "\n")
+cat("\n\n")
 ```
 
 ```{r export-results}
 # ============================================================================
-# EKSPORT WYNIKOW DO EXCELA (silnik pakietu)
+# EXPORT RESULTS TO EXCEL (package engine)
 # ============================================================================
 
-cat("## Eksport wynikow\n\n")
-
-# Sciezka obok raportu (nie w katalogu pakietu)
-output_xlsx <- sub("\\.[^.]+$", "_wyniki.xlsx",
-                   basename(params$data_path))
-
-# Jesli znamy sciezke raportu, zapisz obok niego
-if (exists("output_path_report") && !is.null(output_path_report)) {
-  output_xlsx <- file.path(dirname(output_path_report), output_xlsx)
-}
+cat("##", t("export.section_title"), "\n\n")
 
 dif_to_export <- if (exists("dif_all") && isTRUE(dif_all$status$ok)) {
   dif_all
@@ -1183,19 +1193,19 @@ export_result <- tryCatch(
     group_var = params$group_var,
     has_versions = has_versions,
     detected_version_col = detected_version_col,
-    output_file = output_xlsx,
+    output_file = params$excel_path,
     overwrite = TRUE
   ),
   error = function(e) {
-    cat("Blad zapisu Excel:", e$message, "\n")
-    cat("Wyniki dostepne w obiektach R: ctt_results, irt_results, fit_results\n")
+    cat(t("export.excel_error"), e$message, "\n")
+    cat(t("export.objects_available"), "\n")
     NULL
   }
 )
 
 if (!is.null(export_result) && isTRUE(export_result$status$ok)) {
-  cat(sprintf("Wyniki zapisane do: **%s**\n\n", export_result$output_file))
-  cat("Arkusze:\n\n")
+  cat(sprintf(t("export.saved_to"), export_result$output_file), "\n\n")
+  cat(t("export.sheets_title"), "\n\n")
   for (s in export_result$sheets) {
     cat(sprintf("- %s\n", s))
   }
@@ -1206,4 +1216,4 @@ cat("\n")
 
 ------------------------------------------------------------------------
 
-*Raport wygenerowany automatycznie za pomoca pakietu `aazbie` i szablonu `psychometria_raport.Rmd`.* *Pakiety: psych, mirt, sirt, ggplot2.*
+*`r t('report.footer')`* *`r t('report.packages')`*

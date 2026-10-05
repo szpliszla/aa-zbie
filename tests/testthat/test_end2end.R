@@ -15,7 +15,14 @@ test_that('raport na przykładowych danych binarnych działa', {
   )
 
   expect_true(file.exists(outpath))
-  unlink(outpath)
+  # render_report() defaults to English
+  expect_identical(polskie_frazy(outpath), character(0))
+  # Item tables are written as HTML (not only the static markdown tables)
+  expect_gt(length(gregexpr("<table", paste(readLines(outpath, warn = FALSE), collapse = "\n"))[[1]]), 15)
+  # Excel file next to the report, with a timestamp in its name
+  xlsx <- list.files(dirname(outpath), "^math_data_results_.*\\.xlsx$", full.names = TRUE)
+  expect_length(xlsx, 1)
+  unlink(c(outpath, xlsx))
 })
 
 test_that('raport na danych politomicznych działa', {
@@ -35,5 +42,9 @@ test_that('raport na danych politomicznych działa', {
   )
 
   expect_true(file.exists(outpath))
-  unlink(outpath)
+  # render_report() defaults to English
+  expect_identical(polskie_frazy(outpath), character(0))
+  xlsx <- list.files(dirname(outpath), "^mixed_data_results_.*\\.xlsx$", full.names = TRUE)
+  expect_length(xlsx, 1)
+  unlink(c(outpath, xlsx))
 })
